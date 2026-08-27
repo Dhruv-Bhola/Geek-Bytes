@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ProofLedger — Submit Complaint</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/animations.css">
+</head>
+<body class="app-body">
+  <div id="layout"></div>
+
+  <main class="content">
+    <section class="page glass slide-in">
+      <h1>Victim Complaint Submission</h1>
+      <form id="complaintForm" class="stack">
+        <div class="row">
+          <label class="field"><span class="label">Name</span><input id="v_name" required></label>
+          <label class="field"><span class="label">Contact</span><input id="v_contact" required></label>
+        </div>
+        <div class="row">
+          <label class="field"><span class="label">Incident Date</span><input id="v_date" type="date" required></label>
+          <label class="field"><span class="label">Platform</span>
+            <select id="v_platform">
+              <option>Instagram</option><option>WhatsApp</option><option>Facebook</option><option>Email</option><option>Phone</option><option>Other</option>
+            </select>
+          </label>
+        </div>
+        <label class="field"><span class="label">Crime Description</span><textarea id="v_description" rows="4" required></textarea></label>
+        <label class="field"><span class="label">Location (optional)</span><input id="v_location"></label>
+        <label class="field"><span class="label">Additional Details</span><textarea id="v_additional" rows="2"></textarea></label>
+
+        <div class="actions">
+          <button id="submitComplaint" class="btn primary">Submit Complaint</button>
+        </div>
+
+        <div id="complaintResult" class="result muted hidden">
+          <div><strong>Complaint ID:</strong> <span id="compId">—</span></div>
+          <div><strong>Status:</strong> <span class="pill info">Submitted</span></div>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/complaints.js"></script>
+</body>
+</html>

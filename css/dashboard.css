@@ -1,0 +1,2 @@
+/* Dashboard-specific additions; base visual system lives in style.css. */
+.dashboard .panels{margin-top:18px}.dashboard .panel{min-height:180px}.dashboard .stat{background:linear-gradient(#fff,#fbfcfc)}

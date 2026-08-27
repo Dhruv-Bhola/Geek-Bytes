@@ -1,0 +1,2 @@
+/* Shared component polish for the Cyber Crime / government-portal design language. */
+.card.compact{padding:13px}.icon-box{width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;background:#edf5f6;color:#004242;font-weight:800}.key-value{display:grid;grid-template-columns:180px 1fr;gap:8px 14px;font-size:12px}.key-value>div{padding:7px 0;border-bottom:1px solid #edf0f1}.key-value .key{font-weight:700;color:#59656b}@media(max-width:720px){.key-value{grid-template-columns:1fr}}

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ProofLedger — Victim Evidence Upload</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/animations.css">
+</head>
+<body class="app-body">
+  <div id="layout"></div>
+
+  <main class="content">
+    <section class="page glass slide-in">
+      <h1>Submit Evidence (Victim)</h1>
+
+      <form id="evidenceForm" class="stack">
+        <label class="field"><span class="label">Complaint ID</span><input id="ev_complaint" value="CC-10482"></label>
+        <label class="field"><span class="label">Evidence Type</span>
+          <select id="ev_type">
+            <option>Screenshot</option><option>Image</option><option>Video</option><option>Audio</option><option>Chat export</option><option>Document</option><option>Other</option>
+          </select>
+        </label>
+        <label class="field"><span class="label">Source / Platform</span><input id="ev_source" value="Instagram"></label>
+        <label class="field"><span class="label">URL</span><input id="ev_url" placeholder="https://..."></label>
+        <label class="field"><span class="label">Description</span><textarea id="ev_desc" rows="3"></textarea></label>
+
+        <div id="dropzone" class="dropzone" tabindex="0">
+          <div class="dz-inner">Drag & drop files here or click to select<br><small class="muted">Max demo size enforced</small></div>
+          <input id="ev_file" type="file" hidden>
+        </div>
+
+        <div class="actions">
+          <button id="submitEvidence" class="btn primary">Upload Evidence</button>
+        </div>
+
+        <div id="evidenceResult" class="result muted hidden">
+          <div><strong>Evidence ID:</strong> <span id="evidId">—</span></div>
+          <div><strong>Timestamp:</strong> <span id="evidTs">—</span></div>
+          <div><strong>SHA-256:</strong> <code id="evidHash">—</code></div>
+          <div><strong>Status:</strong> <span class="pill warn">Submitted — Pending Police Verification</span></div>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/evidence.js"></script>
+</body>
+</html>

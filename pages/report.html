@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ProofLedger — Investigation Report</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/components.css">
+</head>
+<body class="app-body">
+  <div id="layout"></div>
+
+  <main class="content">
+    <section class="page glass slide-in">
+      <h1>Investigation Report</h1>
+
+      <div class="report-grid">
+        <aside class="card glass">
+          <div><strong>Case:</strong> CYB-1042</div>
+          <div><strong>Complaint Classification:</strong> Online Harassment</div>
+          <div><strong>Assigned Cell:</strong> Cyber Crime / Women Safety Cell</div>
+          <div><strong>Victim Evidence:</strong> 05</div>
+          <div><strong>Police Evidence:</strong> 08</div>
+          <div><strong>Forensic Evidence:</strong> 03</div>
+          <div class="meta">Chain of Custody: <span class="pill success">✓ Complete</span></div>
+        </aside>
+
+        <section class="card glass preview" id="reportPreview">
+          <div class="report-header">
+            <h2>INVESTIGATION REPORT</h2>
+            <small class="muted">Case CYB-1042</small>
+          </div>
+
+          <div class="report-body">
+            <p><strong>Summary:</strong> AI-assisted classification indicates Online Harassment. Multiple evidence items captured and verified.</p>
+            <ul>
+              <li>Integrity Verified: 14</li>
+              <li>AI Analyses: 06</li>
+              <li>Related Evidence: 04</li>
+            </ul>
+          </div>
+
+          <div class="report-actions">
+            <button id="generatePdf" class="btn primary">Generate PDF</button>
+            <button id="digitalSign" class="btn ghost">Digital Sign</button>
+            <button id="shareSecure" class="btn">Share Securely</button>
+          </div>
+        </section>
+      </div>
+
+    </section>
+  </main>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/report.js"></script>
+</body>
+</html>

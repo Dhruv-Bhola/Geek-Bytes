@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ProofLedger — Social Media Preservation</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/animations.css">
+</head>
+<body class="app-body">
+  <div id="layout"></div>
+
+  <main class="content">
+    <section class="page glass slide-in">
+      <h1>Social Media Evidence Preservation</h1>
+
+      <div class="preserve grid">
+        <div class="left">
+          <label class="field"><span class="label">Platform</span><input id="sm_platform" value="Instagram"></label>
+          <label class="field"><span class="label">Post URL</span><input id="sm_url" placeholder="https://instagram.com/..."></label>
+          <label class="field"><span class="label">Capture Timestamp</span><input id="sm_ts" type="datetime-local"></label>
+          <label class="field"><span class="label">Notes</span><textarea id="sm_notes" rows="3"></textarea></label>
+          <div class="actions">
+            <button id="preserveBtn" class="btn primary">Preserve Evidence</button>
+          </div>
+        </div>
+
+        <div class="right card glass">
+          <h3>Evidence Preservation Pipeline</h3>
+          <ol class="pipeline">
+            <li>SOCIAL MEDIA URL</li>
+            <li>CAPTURE</li>
+            <li>TIMESTAMP</li>
+            <li>SHA-256 HASH</li>
+            <li>EVIDENCE ID</li>
+            <li>BLOCKCHAIN ANCHOR</li>
+          </ol>
+
+          <div id="preserveResult" class="muted hidden">
+            <div><strong>Evidence ID:</strong> <span id="sm_eid">—</span></div>
+            <div><strong>SHA-256:</strong> <code id="sm_hash">—</code></div>
+            <div><strong>Timestamp:</strong> <span id="sm_ts_out">—</span></div>
+            <div><strong>Blockchain Anchor:</strong> <span class="pill success">Recorded</span></div>
+            <div class="note green">Demo: Post unavailable — captured evidence available ✓</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/evidence.js"></script>
+</body>
+</html>
