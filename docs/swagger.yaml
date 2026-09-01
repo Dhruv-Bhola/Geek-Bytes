@@ -1,0 +1,244 @@
+openapi: 3.0.3
+info:
+  title: Secure Evidence DMS — Cyber Crime Evidence Handling API
+  description: >
+    Tamper-evident, court-ready evidence vault with blockchain-anchored
+    integrity, role-based access control and forensic AI (SIH-26190).
+    Base path is `/api/v1` for the Express REST API and `/api/ai` for the
+    FastAPI AI/forensics microservice.
+  version: 1.0.0
+  contact:
+    name: Secure Evidence DMS Team (SIH26190)
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Express REST API
+  - url: http://localhost:8000/api/ai
+    description: FastAPI AI / forensics microservice
+tags:
+  - name: Auth
+    description: Identity, access tokens, RBAC.
+  - name: Complaints
+    description: Citizen complaint intake and classification.
+  - name: Cases
+    description: Investigation case management.
+  - name: Evidence
+    description: Upload, custody, verify and download evidence.
+  - name: Blockchain
+    description: On-chain integrity anchors.
+  - name: AI
+    description: NLP classification, deepfake forensics, correlation.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        message: { type: string }
+        code: { type: string }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        customUserId: { type: string }
+        fullName: { type: string }
+        email: { type: string }
+        role:
+          type: string
+          enum: [police, investigator, lawyer, judge, victim, admin]
+    LoginResponse:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        accessToken: { type: string }
+        refreshToken: { type: string }
+    Complaint:
+      type: object
+      properties:
+        complaintId: { type: string }
+        victimName: { type: string }
+        crimeDescription: { type: string }
+        status: { type: string }
+    Case:
+      type: object
+      properties:
+        caseId: { type: string }
+        caseTitle: { type: string }
+        status: { type: string }
+        riskScore: { type: number }
+    Evidence:
+      type: object
+      properties:
+        evidenceId: { type: string }
+        evidenceType: { type: string }
+        sha256Hash: { type: string }
+        integrityStatus:
+          type: string
+          enum: [pending, verified, tampered]
+        fileUrl: { type: string }
+    VerifyResponse:
+      type: object
+      properties:
+        valid: { type: boolean }
+        message: { type: string }
+        anchoredHash: { type: string }
+        liveHash: { type: string }
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in by email or customUserId
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier, password]
+              properties:
+                identifier: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Authenticated with JWT pair.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401': { $ref: '#/components/schemas/Error' }
+
+  /cases:
+    get:
+      tags: [Cases]
+      summary: List cases within the caller's jurisdiction
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Cases (victim's own, or all within cell for police).
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Case' }
+        '403': { $ref: '#/components/schemas/Error' }
+
+  /evidence:
+    post:
+      tags: [Evidence]
+      summary: Upload evidence (AES-256 encrypted + on-chain anchored)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, caseId]
+              properties:
+                file: { type: string, format: binary }
+                caseId: { type: string }
+                evidenceType: { type: string }
+                sourceType: { type: string }
+      responses:
+        '201':
+          description: Evidence stored and anchored.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Evidence' }
+        '409': { $ref: '#/components/schemas/Error' }
+
+  /evidence/{evidenceId}/verify:
+    get:
+      tags: [Evidence]
+      summary: Verify SHA-256 + AES-GCM integrity against the on-chain anchor
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: evidenceId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Integrity verified.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerifyResponse' }
+        '409':
+          description: TAMPERED — integrity alert raised and custody log appended.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /evidence/{evidenceId}/custody:
+    get:
+      tags: [Evidence]
+      summary: Full chain-of-custody timeline for an evidence item
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: evidenceId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Ordered custody events (actor, action, timestamp, hash).
+
+  /ai/classify:
+    post:
+      tags: [AI]
+      summary: NLP intent classification of a complaint description
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string }
+                complaint_id: { type: string }
+      responses:
+        '200':
+          description: Predicted category, recommended cell, bounded probabilities.
+
+  /ai/deepfake-scan:
+    post:
+      tags: [AI]
+      summary: Synthetic-media / manipulation forensics for an evidence artifact
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                evidence_id: { type: string, default: E-002 }
+      responses:
+        '200':
+          description: Deepfake/manipulation probabilities in [0,1] + decision.
+
+  /ai/correlate:
+    post:
+      tags: [AI]
+      summary: Build an evidence correlation graph from shared entities
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                case_id: { type: string }
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      evidence_id: { type: string }
+                      kind: { type: string }
+                      label: { type: string }
+                      entities: { type: array, items: { type: string } }
+      responses:
+        '200':
+          description: Nodes + edges with bounded confidence.

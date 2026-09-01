@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Digital DMS — Police Upload</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/animations.css">
+</head>
+<body class="app-body">
+  <div id="layout"></div>
+
+  <main class="content">
+    <section class="page glass slide-in">
+      <h1>Police Evidence Upload — Large Footage</h1>
+
+      <form id="policeUpload" class="stack">
+        <label class="field"><span class="label">Evidence Type</span><select id="pol_evtype"><option>CCTV / Video</option></select></label>
+        <label class="field"><span class="label">Source</span><input id="pol_source" value="Police Investigation"></label>
+        <label class="field"><span class="label">Related Evidence</span><input id="pol_related" value="E-002 Victim Video"></label>
+        <div class="field"><span class="label">File</span><input id="pol_file" type="file" accept="video/*"></div>
+
+        <div id="pol_progress" class="upload-progress hidden">
+          <div class="progress-bar"><div style="width:0%"></div></div>
+          <div class="muted small">Uploading... <span id="pol_pct">0%</span></div>
+        </div>
+
+        <div class="actions"><button id="pol_upload_btn" class="btn primary">Upload & Link Evidence</button></div>
+
+        <div id="pol_result" class="muted hidden">
+          <div>Related: <strong id="pol_related_out">—</strong></div>
+          <div>New Evidence: <strong id="pol_new_eid">—</strong></div>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/evidence.js"></script>
+</body>
+</html>

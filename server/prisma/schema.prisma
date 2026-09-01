@@ -1,0 +1,187 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ======================
+// ENUMS
+// ======================
+
+enum Role {
+  police
+  investigator
+  forensic // alias of investigator (Digital Forensics Lab)
+  lawyer
+  judge
+  victim
+  admin
+}
+
+enum Severity {
+  low
+  medium
+  high
+  critical
+}
+
+enum ComplaintStatus {
+  submitted
+  classified
+  case_created
+  rejected
+}
+
+enum CaseStatus {
+  open
+  under_investigation
+  chargesheet_filed
+  court_disposed
+}
+
+enum SourceType {
+  victim
+  police
+  forensic
+}
+
+enum EvidenceType {
+  screenshot
+  video
+  audio
+  cctv
+  chat_export
+  document
+  other
+}
+
+enum IntegrityStatus {
+  verified
+  pending
+  tampered
+}
+
+enum CustodyAction {
+  uploaded
+  verified
+  accessed
+  received
+  analysis_completed
+  transferred
+  report_generated
+}
+
+// ======================
+// MODELS
+// ======================
+
+model User {
+  id                String   @id @default(uuid())
+  customUserId      String   @unique @map("custom_user_id") // e.g. officer_rahul, victim_jane
+  fullName          String   @map("full_name")
+  email             String   @unique
+  phone             String?
+  passwordHash      String   @map("password_hash")
+  role              Role
+  badgeNumber       String?  @map("badge_number")
+  jurisdictionCell  String?  @map("jurisdiction_cell") // e.g. 'Cyber Crime / Women Safety Cell'
+  mfaSecret         String?  @map("mfa_secret")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  complaints        Complaint[]
+  cases             Case[]          @relation("AssignedOfficer")
+  evidence          Evidence[]
+  custodyLogs       CustodyLog[]
+
+  @@map("users")
+}
+
+model Complaint {
+  id                 String          @id @default(uuid())
+  complaintId        String          @unique @map("complaint_id") // CC-XXXXX
+  victimId           String          @map("victim_id") // FK -> User.id
+  victimName         String          @map("victim_name")
+  contactNumber      String          @map("contact_number")
+  incidentDate       DateTime        @map("incident_date")
+  platform           String          // Instagram, WhatsApp, Telegram, etc.
+  crimeDescription   String          @map("crime_description")
+  location           String?
+  additionalDetails  String?         @map("additional_details")
+  aiPredictedCategory String          @map("ai_predicted_category") // from AI engine
+  aiConfidence       Float           @default(0.0) @map("ai_confidence")
+  severity           Severity        @default(medium)
+  assignedCell       String?         @map("assigned_cell") // e.g. 'Cyber Crime / Women Safety Cell'
+  status             ComplaintStatus @default(submitted)
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  victim             User            @relation(fields: [victimId], references: [id])
+  cases              Case?           // complaint may not yet have a case
+  evidence           Evidence[]
+
+  @@map("complaints")
+}
+
+model Case {
+  id               String     @id @default(uuid())
+  caseId           String     @unique @map("case_id") // CYB-XXXX
+  complaintId      String     @unique @map("complaint_id") // FK -> Complaints.id
+  assignedOfficerId String    @map("assigned_officer_id") // FK -> User.id
+  caseTitle        String     @map("case_title")
+  status           CaseStatus @default(open)
+  riskScore        Float      @default(0.0) @map("risk_score")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  complaint        Complaint  @relation(fields: [complaintId], references: [id])
+  assignedOfficer  User       @relation("AssignedOfficer", fields: [assignedOfficerId], references: [id])
+  evidence         Evidence[]
+
+  @@map("cases")
+}
+
+model Evidence {
+  id               String          @id @default(uuid())
+  evidenceId       String          @unique @map("evidence_id") // E-XXX
+  caseId           String?         @map("case_id") // nullable before case creation
+  complaintId      String          @map("complaint_id")
+  uploadedById     String          @map("uploaded_by_id")
+  sourceType       SourceType      @map("source_type")
+  evidenceType     EvidenceType    @map("evidence_type")
+  fileUrl          String          @map("file_url") // S3 or encrypted local path
+  sha256Hash        String?         @map("sha256_hash") // CHAR(64)
+  blockchainTxHash  String?         @map("blockchain_tx_hash")
+  blockchainBlock   Int?            @map("blockchain_block")
+  blockchainStatus  String?         @map("blockchain_status")
+  integrityStatus   IntegrityStatus @default(pending) @map("integrity_status")
+  metadata         Json?           // device info, capture timestamps, OCR text, source URLs
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  case             Case?           @relation(fields: [caseId], references: [id])
+  complaint        Complaint       @relation(fields: [complaintId], references: [id])
+  uploadedBy       User            @relation(fields: [uploadedById], references: [id])
+  custodyLogs      CustodyLog[]
+
+  @@map("evidence")
+}
+
+model CustodyLog {
+  id                String       @id @default(uuid())
+  evidenceId        String       @map("evidence_id")
+  actorId           String       @map("actor_id")
+  actorRole         String       @map("actor_role")
+  action            CustodyAction
+  recordedSha256Hash String      @map("recorded_sha256_hash") // CHAR(64)
+  remarks           String?
+  timestamp         DateTime     @default(now())
+
+  evidence          Evidence     @relation(fields: [evidenceId], references: [id])
+  actor             User         @relation(fields: [actorId], references: [id])
+
+  @@map("chain_of_custody_logs")
+}

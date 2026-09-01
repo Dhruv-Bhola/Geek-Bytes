@@ -1,0 +1,5 @@
+Assets folder placeholder:
+- icons/ (place app icons or SVGs here)
+- images/ (case thumbnails, mock avatars)
+
+All images in this demo are represented via CSS and text placeholders. Replace with real assets when integrating backend.

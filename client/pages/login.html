@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Digital DMS — Secure Role Selection</title>
+  <link rel="stylesheet" href="../css/style.css"><link rel="stylesheet" href="../css/components.css"><link rel="stylesheet" href="../css/animations.css">
+</head>
+<body class="login-page">
+  <div class="gov-strip"><div class="inner"><span>Government of India</span><span>Ministry of Home Affairs • Cyber Crime Evidence Management</span></div></div>
+  <header class="site-header"><div class="inner"><div class="brand-lockup"><img class="emblem" src="../assets/emblem-dark.png" alt="Government emblem"><img class="i4c" src="../assets/i4c.png" alt="I4C"><div class="brand-title"><strong>National Cyber Crime Evidence Portal</strong><span>Secure Digital Evidence Management • Digital DMS</span></div></div><div class="header-badge">SECURE ACCESS<br><span class="muted">Demo environment</span></div></div></header>
+  <main class="login-shell">
+    <section class="login-card">
+      <div class="login-brand"><img src="../assets/emblem-dark.png" alt="Government emblem"><div><h1 style="margin:0;color:#004242;font-size:23px">Digital DMS</h1><div class="muted small">Secure Digital Evidence Management</div></div></div>
+      <div class="section-title"><div><h2 style="font-size:17px;margin:0">1. Login / Role Selection</h2><div class="accent"></div></div><span class="pill success">Demo Ready</span></div>
+      <form id="loginForm" class="form stack">
+        <label class="field"><span class="label">Select Role</span><div class="role-row" role="radiogroup" aria-label="Select role"><button type="button" class="role-btn active" data-role="victim">Victim</button><button type="button" class="role-btn" data-role="police">Police Officer</button><button type="button" class="role-btn" data-role="forensic">Forensic</button><button type="button" class="role-btn" data-role="legal">Legal</button></div></label>
+        <label class="field"><span class="label">Officer / Victim ID</span><input id="userId" name="userId" placeholder="e.g. victim_jane / Rahul123" required></label>
+        <label class="field"><span class="label">Password</span><input id="password" name="password" type="password" placeholder="Enter your password" required></label>
+        <div class="card compact" style="background:#f7fafb"><div class="small"><strong>Multi-factor authentication</strong><br><span class="muted">For this prototype, MFA is represented as a frontend status only.</span></div><div id="mfaIndicator" style="margin-top:8px">MFA: <span class="pill warn">Optional</span></div></div>
+        <div class="actions"><button id="secureLogin" class="btn primary" type="submit">Secure Login →</button><button type="button" class="btn ghost" data-go="../pages/victim-complaint.html">Continue as Demo Victim</button></div>
+        <div class="muted small">No backend required • Demo login routes each role to its relevant workflow.</div>
+      </form>
+    </section>
+  </main>
+  <footer class="page-footer"><div>Secure Legal & Investigation Document Management System (SIH26190) frontend prototype • Government-style cyber crime portal UI reference.</div><div class="right">Frontend-only mock • No real authentication</div></footer>
+  <script src="../js/app.js"></script><script src="../js/auth.js"></script>
+</body>
+</html>

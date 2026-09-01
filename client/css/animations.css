@@ -1,0 +1,19 @@
+/* subtle animations and scanlines */
+@keyframes fadeIn { from {opacity:0; transform:translateY(6px)} to {opacity:1; transform:none} }
+.slide-in{animation:fadeIn .45s ease both}
+
+.pulse{display:inline-block;width:8px;height:8px;background:var(--accent);border-radius:50%;box-shadow:0 0 12px rgba(0,240,255,0.12);animation:ping 2s infinite}
+@keyframes ping{0%{transform:scale(0.8);opacity:1}70%{transform:scale(1.6);opacity:0}100%{opacity:0}}
+
+.ai-viz .bar{height:12px;background:transparent;border-radius:6px;border:1px solid rgba(255,255,255,0.03);overflow:hidden}
+.ai-viz .bar > div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));box-shadow:0 6px 12px rgba(0,160,220,0.06)}
+.ai-viz .bar-row{display:flex;align-items:center;gap:8px;margin:10px 0}
+.ai-viz .bar-row .pct{width:36px;text-align:right;font-weight:700}
+
+.scan-line{position:relative;height:60px;background:linear-gradient(90deg,rgba(255,255,255,0.01), rgba(0,240,255,0.02));overflow:hidden;border-radius:8px;margin:12px 0}
+.scan-line:after{content:'';position:absolute;left:-40%;top:0;width:40%;height:100%;background:linear-gradient(90deg,rgba(255,255,255,0.02),rgba(0,240,255,0.12),rgba(255,255,255,0.02));transform:skewX(-12deg);animation:slide 3s linear infinite}
+@keyframes slide{0%{left:-40%}100%{left:140%}}
+
+.upload-progress{margin-top:12px}
+.progress-bar{height:10px;background:rgba(255,255,255,0.02);border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.02)}
+.progress-bar > div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));width:0%;transition:width .6s ease}

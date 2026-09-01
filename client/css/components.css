@@ -1,0 +1,62 @@
+/* Shared component polish for the Cyber Crime / government-portal design language. */
+.card.compact{padding:13px}.icon-box{width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;background:#edf5f6;color:#004242;font-weight:800}.key-value{display:grid;grid-template-columns:180px 1fr;gap:8px 14px;font-size:12px}.key-value>div{padding:7px 0;border-bottom:1px solid #edf0f1}.key-value .key{font-weight:700;color:#59656b}@media(max-width:720px){.key-value{grid-template-columns:1fr}}
+
+/* ---------------------------------------------------------------------------
+   Dynamic role-based dashboards + admin console (dashboard.html / admin.html)
+   Composable semantics in line with the gov-portal design language (style.css).
+   --------------------------------------------------------------------------- */
+.dms-container{max-width:1440px;margin:0 auto;padding:20px 24px 40px}
+.dms-grid{display:grid;gap:18px}
+.dms-grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.dms-grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.dms-grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.dms-grid.main-side{grid-template-columns:2fr 1fr;align-items:start}
+.dms-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:0 0 20px}
+.dms-metric{background:#fff;border:1px solid var(--border);border-top:4px solid var(--teal);box-shadow:var(--shadow);padding:16px}
+.dms-metric .label{font-size:11px;color:#657078;font-weight:700;text-transform:uppercase}
+.dms-metric .num{font-weight:800;font-size:26px;color:var(--teal);margin-top:4px}
+.dms-metric.warn{border-top-color:var(--red)}
+.dms-metric.gold{border-top-color:var(--yellow)}
+.dms-card{background:#fff;border:1px solid var(--border);box-shadow:var(--shadow);padding:18px;margin-bottom:18px}
+.dms-card>h2,.dms-card>.card-title{font-size:16px;color:var(--teal);margin:0 0 6px}
+.dms-card>.card-sub,.dms-card>.card-subtitle{font-size:12px;color:var(--muted);margin:0 0 14px}
+.dms-card>.section-title{margin-bottom:14px}
+.badge{display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;border:1px solid transparent}
+.badge.info{background:#eaf3f7;color:var(--blue-dark);border-color:#cfe2ea}
+.badge.warn{background:#fff5df;color:#9a6500;border-color:#f2d48e}
+.badge.success{background:#e9f8f1;color:#08783f;border-color:#b9e7ce}
+.badge.danger{background:#fdecec;color:#a11e1b;border-color:#f0c0bf}
+.badge.neutral{background:#eef1f2;color:#455057;border-color:#d7dee1}
+.btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 16px;border:1px solid var(--blue);border-radius:2px;background:var(--blue);color:#fff;font-weight:700;font-size:13px;cursor:pointer}
+.btn-primary:hover{filter:brightness(.96)}
+.btn-primary:disabled{opacity:.6;cursor:not-allowed}
+.btn-ghost{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 16px;border:1px solid #c5ced1;border-radius:2px;background:#f6f8f9;color:var(--teal);font-weight:700;font-size:13px;cursor:pointer}
+.btn-ghost:hover{filter:brightness(.96)}
+.table-custom{width:100%;border-collapse:collapse;font-size:12px}
+.table-custom th{background:#edf3f5;color:var(--teal);text-align:left;padding:10px;border-bottom:2px solid #cfd9dc}
+.table-custom td{padding:10px;border-bottom:1px solid #e3e7e9;vertical-align:top}
+.table-custom tr:hover td{background:#fafcfc}
+.table-custom .center{text-align:center}
+.empty-state{padding:28px;text-align:center;color:var(--muted);font-size:13px;border:1px dashed #c2ced2;background:#fafcfc}
+.status-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.status-dot.up{background:var(--green);box-shadow:0 0 0 3px rgba(13,179,99,.15)}
+.status-dot.down{background:var(--red);box-shadow:0 0 0 3px rgba(201,48,44,.15)}
+.status-dot.degraded{background:var(--orange)}
+.role-panel{display:none}
+.role-panel.active{display:block}
+.dropzone-hash{margin-top:12px;padding:12px;background:#f3f6f7;border:1px dashed #aebfc6;font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--teal);word-break:break-all}
+.feed-list{list-style:none;margin:0;padding:0}
+.feed-list li{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #edf0f1;font-size:12px}
+.feed-list li:last-child{border-bottom:0}
+.feed-list .t{color:var(--muted);font-family:ui-monospace,Consolas,monospace;font-size:11px;flex:0 0 auto}
+.feed-list .tag{flex:0 0 auto}
+.overlay{position:fixed;inset:0;background:rgba(0,32,71,.45);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px}
+.overlay.open{display:flex}
+.overlay-card{width:min(520px,100%);background:#fff;border:1px solid var(--border);box-shadow:var(--shadow);max-height:90vh;overflow:auto}
+.overlay-card .head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border)}
+.overlay-card .head h3{margin:0;color:var(--teal)}
+.overlay-card .body{padding:18px}
+.logout-link{color:var(--muted);font-weight:700;font-size:12px;cursor:pointer}
+.logout-link:hover{color:var(--red)}
+@media(max-width:1050px){.dms-metrics{grid-template-columns:repeat(2,1fr)}.dms-grid.cols-4,.dms-grid.cols-3{grid-template-columns:repeat(2,1fr)}.dms-grid.main-side{grid-template-columns:1fr}}
+@media(max-width:720px){.dms-container{padding:12px}.dms-metrics{grid-template-columns:1fr 1fr}.dms-grid.cols-2,.dms-grid.cols-3,.dms-grid.cols-4,.dms-grid.main-side{grid-template-columns:1fr}.dms-card{padding:14px}}

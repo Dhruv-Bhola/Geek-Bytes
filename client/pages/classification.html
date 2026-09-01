@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Digital DMS — Classification</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/animations.css">
+  <link rel="stylesheet" href="../css/components.css">
+</head>
+<body class="app-body">
+  <div id="layout"></div>
+
+  <main class="content">
+    <section class="page glass slide-in">
+      <h1>AI-Assisted Complaint Classification</h1>
+      <div class="classifier">
+        <div class="left">
+          <div class="stat-card">
+            <div class="meta">Complaint</div>
+            <div class="id">CC-10482</div>
+            <div class="desc muted">Threatening social-media communication</div>
+          </div>
+
+          <div id="classificationViz" class="ai-viz">
+            <div class="scan">AI CLASSIFIER <span class="pulse"></span></div>
+            <div class="bars">
+              <div class="bar-row"><span>Online Harassment</span><div class="bar"><div style="width:0%" data-value="92"></div></div><span class="pct">0%</span></div>
+              <div class="bar-row"><span>Cyber Stalking</span><div class="bar"><div style="width:0%" data-value="61"></div></div><span class="pct">0%</span></div>
+              <div class="bar-row"><span>Financial Fraud</span><div class="bar"><div style="width:0%" data-value="8"></div></div><span class="pct">0%</span></div>
+            </div>
+          </div>
+
+        </div>
+
+        <aside class="right">
+          <div class="card glass">
+            <div class="meta">Recommended Cell</div>
+            <h3>Cyber Crime / Women Safety Cell</h3>
+            <p class="muted small">Reason: Threatening social-media communication</p>
+            <div class="actions">
+              <button id="acceptClass" class="btn primary">Accept Classification</button>
+              <button id="changeClass" class="btn ghost">Change Classification</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/complaints.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Digital DMS — Evidence Verification</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/animations.css">
+</head>
+<body class="app-body">
+  <div id="layout"></div>
+
+  <main class="content">
+    <section class="page glass slide-in">
+      <h1>Evidence Verification & Integrity</h1>
+
+      <div class="verify-grid">
+        <div class="card glass">
+          <h3>Evidence E-002 — Threat Video</h3>
+          <div><strong>Source:</strong> Victim</div>
+          <div><strong>Submitted:</strong> 14:32</div>
+          <div><strong>SHA-256:</strong> <code id="origHash">A8F72C91...</code></div>
+          <div><strong>Blockchain Anchor:</strong> <span class="pill success">✓ Recorded</span></div>
+
+          <div id="verifyState" class="verify-state green">
+            <div class="icon">🟢</div>
+            <div class="title">INTEGRITY VERIFIED</div>
+            <div class="muted">Original Hash = Current Hash</div>
+            <div class="meta">Verified By: Officer Rahul — 15:12</div>
+            <div class="actions">
+              <button id="toggleTamper" class="btn ghost">Simulate Tamper</button>
+            </div>
+          </div>
+
+          <div id="tamperState" class="verify-state red hidden">
+            <div class="icon">❌</div>
+            <div class="title">HASH MISMATCH</div>
+            <div><strong>Original Hash:</strong> A8F72C91...</div>
+            <div><strong>Current Hash:</strong> 91BC72FA...</div>
+            <div class="muted">Accessed by Officer X — 15:42</div>
+            <div class="actions"><button id="resolveTamper" class="btn primary">Mark Resolved</button></div>
+          </div>
+
+        </div>
+
+        <div class="card glass">
+          <h3>Integrity Logs</h3>
+          <ul class="feed">
+            <li><time>15:12</time> Verified by Officer Rahul</li>
+            <li><time>15:42</time> Accessed by Officer X</li>
+          </ul>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/verification.js"></script>
+</body>
+</html>
