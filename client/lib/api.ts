@@ -150,6 +150,7 @@ export function clearAuthStorage(): void {
   );
 }
 
+let refreshPromise: Promise<string | null> | null = null;
 /**
  * ============================================================================
  * RESPONSE HELPERS
@@ -204,15 +205,14 @@ function unwrapData(
 
 async function apiFetch<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  allowRefresh = true
 ): Promise<T> {
-  const token =
-    getAccessToken();
+  const token = getAccessToken();
 
-  const headers =
-    new Headers(
-      options.headers
-    );
+  const headers = new Headers(
+    options.headers
+  );
 
   /*
    * Never manually set Content-Type for FormData.
@@ -221,9 +221,7 @@ async function apiFetch<T>(
   if (
     options.body &&
     !(options.body instanceof FormData) &&
-    !headers.has(
-      "Content-Type"
-    )
+    !headers.has("Content-Type")
   ) {
     headers.set(
       "Content-Type",
@@ -243,26 +241,45 @@ async function apiFetch<T>(
     );
   }
 
-  const response =
-    await fetch(
-      `${API_BASE_URL}${path}`,
-      {
-        ...options,
-        headers,
-      }
+  const response = await fetch(
+    `${API_BASE_URL}${path}`,
+    {
+      ...options,
+      headers,
+    }
+  );
+
+  /*
+   * Access token expired.
+   * Refresh once and retry the original request.
+   */
+  if (
+    response.status === 401 &&
+    allowRefresh &&
+    path !== "/auth/refresh"
+  ) {
+    const newAccessToken =
+      await refreshAccessToken();
+
+    if (newAccessToken) {
+      return apiFetch<T>(
+        path,
+        options,
+        false
+      );
+    }
+
+    clearAuthStorage();
+
+    throw new Error(
+      "Your session has expired. Please log in again."
     );
+  }
 
   const payload =
-    await parseResponseBody(
-      response
-    );
+    await parseResponseBody(response);
 
   if (!response.ok) {
-    /*
-     * Log the complete backend response so we can
-     * see exactly why a request such as integrity
-     * verification returned 409.
-     */
     console.error(
       `[apiFetch] ${response.status} ${response.statusText} ${path}`,
       payload
@@ -274,9 +291,6 @@ async function apiFetch<T>(
         `API request failed with status ${response.status}`
       );
 
-    /*
-     * Keep the backend message in the thrown error.
-     */
     throw new Error(
       backendError
     );
@@ -635,26 +649,29 @@ function mapBackendUser(
       true,
   };
 }
-
-export async function getCurrentUser(): Promise<
-  User | null
-> {
-  if (
-    typeof window ===
-    "undefined"
-  ) {
+export async function getCurrentUser(): Promise<User | null> {
+  if (typeof window === "undefined") {
     return null;
   }
 
-  if (!getAccessToken()) {
+  const accessToken = getAccessToken();
+  const refreshTokenValue = getRefreshToken();
+
+  /*
+   * No session exists.
+   */
+  if (!accessToken && !refreshTokenValue) {
     return null;
   }
 
   try {
-    const payload =
-      await apiFetch<any>(
-        "/auth/me"
-      );
+    /*
+     * apiFetch() automatically refreshes the access token
+     * when the current access token has expired.
+     */
+    const payload = await apiFetch<any>(
+      "/auth/me"
+    );
 
     const backendUser =
       payload?.data?.user ??
@@ -665,9 +682,7 @@ export async function getCurrentUser(): Promise<
       return null;
     }
 
-    return mapBackendUser(
-      backendUser
-    );
+    return mapBackendUser(backendUser);
   } catch (error) {
     console.error(
       "Failed to restore authenticated user:",
@@ -677,6 +692,93 @@ export async function getCurrentUser(): Promise<
     clearAuthStorage();
 
     return null;
+  }
+}
+async function refreshAccessToken(): Promise<string | null> {
+  /*
+   * Prevent multiple simultaneous refresh requests.
+   */
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    const refresh =
+      getRefreshToken();
+
+    if (!refresh) {
+      return null;
+    }
+
+    try {
+      /*
+       * IMPORTANT:
+       * Use fetch directly here.
+       * Do NOT use apiFetch(), otherwise a failed refresh
+       * could recursively trigger another refresh.
+       */
+      const response =
+        await fetch(
+          `${API_BASE_URL}/auth/refresh`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+              Accept:
+                "application/json",
+            },
+            body: JSON.stringify({
+              refreshToken: refresh,
+            }),
+          }
+        );
+
+      const payload =
+        await parseResponseBody(
+          response
+        );
+
+      if (!response.ok) {
+        console.warn(
+          "Refresh token request failed:",
+          response.status,
+          payload
+        );
+
+        return null;
+      }
+
+      const data =
+        unwrapData(payload);
+
+      if (
+        !data?.accessToken
+      ) {
+        return null;
+      }
+
+      saveTokens(
+        data.accessToken,
+        data.refreshToken ??
+          refresh
+      );
+
+      return data.accessToken;
+    } catch (error) {
+      console.error(
+        "Automatic token refresh failed:",
+        error
+      );
+
+      return null;
+    }
+  })();
+
+  try {
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
   }
 }
 

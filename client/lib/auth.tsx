@@ -43,7 +43,14 @@ export function AuthProvider({
     useState(true);
 
   /*
-   * Restore the authenticated session when the application starts.
+   * Restore the authenticated session when
+   * the application starts.
+   *
+   * getCurrentUser() is responsible for:
+   * - using the existing access token
+   * - refreshing the access token when expired
+   * - returning the authenticated user
+   * - returning null when the session is invalid
    */
   useEffect(() => {
     let mounted = true;
@@ -127,6 +134,46 @@ export function AuthProvider({
       clearAuthStorage();
     }
   }
+
+  /*
+   * Keep the session user in sync when
+   * another browser tab/window changes it.
+   */
+  useEffect(() => {
+    function handleStorage(event: StorageEvent) {
+      if (
+        event.key !== SESSION_USER_KEY
+      ) {
+        return;
+      }
+
+      if (!event.newValue) {
+        setUserState(null);
+        return;
+      }
+
+      try {
+        const storedUser =
+          JSON.parse(event.newValue) as User;
+
+        setUserState(storedUser);
+      } catch {
+        setUserState(null);
+      }
+    }
+
+    window.addEventListener(
+      "storage",
+      handleStorage
+    );
+
+    return () => {
+      window.removeEventListener(
+        "storage",
+        handleStorage
+      );
+    };
+  }, []);
 
   return (
     <AuthContext.Provider
