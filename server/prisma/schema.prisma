@@ -8,14 +8,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ======================
+// ============================================================
 // ENUMS
-// ======================
+// ============================================================
 
 enum Role {
   police
   investigator
-  forensic // alias of investigator (Digital Forensics Lab)
+  forensic
   lawyer
   judge
   victim
@@ -75,113 +75,524 @@ enum CustodyAction {
   report_generated
 }
 
-// ======================
-// MODELS
-// ======================
+// ============================================================
+// NEW SECURE DMS ENUMS
+// ============================================================
+
+enum DocumentSensitivity {
+  normal
+  confidential
+  highly_confidential
+  restricted
+}
+
+enum DocumentAction {
+  view
+  download
+  upload
+  update
+  transfer
+  verify
+}
+
+enum AssignmentStatus {
+  active
+  revoked
+}
+
+enum AuditAction {
+  login_success
+  login_failed
+  document_uploaded
+  document_viewed
+  document_downloaded
+  document_updated
+  document_verified
+  document_transferred
+  access_denied
+  emergency_access
+  emergency_access_expired
+}
+
+enum AlertSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+enum AlertType {
+  integrity_mismatch
+  unauthorized_access
+  repeated_login_failure
+  emergency_access
+  blockchain_failure
+  suspicious_activity
+}
+
+enum AlertStatus {
+  open
+  acknowledged
+  resolved
+}
+
+enum EmergencyAccessStatus {
+  pending
+  approved
+  rejected
+  expired
+  revoked
+}
+
+// ============================================================
+// USER
+// ============================================================
 
 model User {
-  id                String   @id @default(uuid())
-  customUserId      String   @unique @map("custom_user_id") // e.g. officer_rahul, victim_jane
-  fullName          String   @map("full_name")
-  email             String   @unique
-  phone             String?
-  passwordHash      String   @map("password_hash")
-  role              Role
-  badgeNumber       String?  @map("badge_number")
-  jurisdictionCell  String?  @map("jurisdiction_cell") // e.g. 'Cyber Crime / Women Safety Cell'
-  mfaSecret         String?  @map("mfa_secret")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id               String  @id @default(uuid())
+  customUserId     String  @unique @map("custom_user_id")
+  fullName         String  @map("full_name")
+  email            String  @unique
+  phone            String?
+  passwordHash     String  @map("password_hash")
+  role             Role
+  badgeNumber      String? @map("badge_number")
+  jurisdictionCell String? @map("jurisdiction_cell")
+  mfaSecret        String? @map("mfa_secret")
 
-  complaints        Complaint[]
-  cases             Case[]          @relation("AssignedOfficer")
-  evidence          Evidence[]
-  custodyLogs       CustodyLog[]
+  // Account security
+  isActive         Boolean   @default(true) @map("is_active")
+  failedLoginCount Int       @default(0) @map("failed_login_count")
+  lockedUntil      DateTime? @map("locked_until")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Existing relations
+  complaints  Complaint[]
+  cases       Case[]       @relation("AssignedOfficer")
+  evidence    Evidence[]
+  custodyLogs CustodyLog[]
+
+  // Secure DMS relations
+  caseAssignments    CaseAssignment[]
+  assignmentsCreated CaseAssignment[] @relation("AssignmentCreatedBy")
+
+  documentsCreated         Document[]        @relation("DocumentsCreated")
+  documentVersionsUploaded DocumentVersion[] @relation("DocumentVersionsUploaded")
+
+  documentPermissions DocumentPermission[]
+  permissionsGranted  DocumentPermission[] @relation("PermissionGrantedBy")
+
+  auditEvents AuditEvent[]
+
+  emergencyRequests  EmergencyAccess[] @relation("EmergencyRequester")
+  emergencyApprovals EmergencyAccess[] @relation("EmergencyApprover")
+
+  securityAlerts SecurityAlert[]
 
   @@map("users")
 }
 
-model Complaint {
-  id                 String          @id @default(uuid())
-  complaintId        String          @unique @map("complaint_id") // CC-XXXXX
-  victimId           String          @map("victim_id") // FK -> User.id
-  victimName         String          @map("victim_name")
-  contactNumber      String          @map("contact_number")
-  incidentDate       DateTime        @map("incident_date")
-  platform           String          // Instagram, WhatsApp, Telegram, etc.
-  crimeDescription   String          @map("crime_description")
-  location           String?
-  additionalDetails  String?         @map("additional_details")
-  aiPredictedCategory String          @map("ai_predicted_category") // from AI engine
-  aiConfidence       Float           @default(0.0) @map("ai_confidence")
-  severity           Severity        @default(medium)
-  assignedCell       String?         @map("assigned_cell") // e.g. 'Cyber Crime / Women Safety Cell'
-  status             ComplaintStatus @default(submitted)
-  createdAt          DateTime        @default(now()) @map("created_at")
-  updatedAt          DateTime        @updatedAt @map("updated_at")
+// ============================================================
+// EXISTING COMPLAINT
+// Kept temporarily for compatibility with existing backend.
+// ============================================================
 
-  victim             User            @relation(fields: [victimId], references: [id])
-  cases              Case?           // complaint may not yet have a case
-  evidence           Evidence[]
+model Complaint {
+  id                String   @id @default(uuid())
+  complaintId       String   @unique @map("complaint_id")
+  victimId          String   @map("victim_id")
+  victimName        String   @map("victim_name")
+  contactNumber     String   @map("contact_number")
+  incidentDate      DateTime @map("incident_date")
+  platform          String
+  crimeDescription  String   @map("crime_description")
+  location          String?
+  additionalDetails String?  @map("additional_details")
+
+  // Kept temporarily because existing controllers depend on them.
+  aiPredictedCategory String @map("ai_predicted_category")
+  aiConfidence        Float  @default(0.0) @map("ai_confidence")
+
+  severity     Severity        @default(medium)
+  assignedCell String?         @map("assigned_cell")
+  status       ComplaintStatus @default(submitted)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  victim   User       @relation(fields: [victimId], references: [id])
+  cases    Case?
+  evidence Evidence[]
 
   @@map("complaints")
 }
 
-model Case {
-  id               String     @id @default(uuid())
-  caseId           String     @unique @map("case_id") // CYB-XXXX
-  complaintId      String     @unique @map("complaint_id") // FK -> Complaints.id
-  assignedOfficerId String    @map("assigned_officer_id") // FK -> User.id
-  caseTitle        String     @map("case_title")
-  status           CaseStatus @default(open)
-  riskScore        Float      @default(0.0) @map("risk_score")
-  createdAt        DateTime   @default(now()) @map("created_at")
-  updatedAt        DateTime   @updatedAt @map("updated_at")
+// ============================================================
+// EXISTING CASE
+// ============================================================
 
-  complaint        Complaint  @relation(fields: [complaintId], references: [id])
-  assignedOfficer  User       @relation("AssignedOfficer", fields: [assignedOfficerId], references: [id])
-  evidence         Evidence[]
+model Case {
+  id                String     @id @default(uuid())
+  caseId            String     @unique @map("case_id")
+  complaintId       String     @unique @map("complaint_id")
+  assignedOfficerId String     @map("assigned_officer_id")
+  caseTitle         String     @map("case_title")
+  status            CaseStatus @default(open)
+  riskScore         Float      @default(0.0) @map("risk_score")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id])
+
+  assignedOfficer User @relation("AssignedOfficer", fields: [assignedOfficerId], references: [id])
+
+  evidence Evidence[]
+
+  // Secure DMS relations
+  assignments    CaseAssignment[]
+  documents      Document[]
+  auditEvents    AuditEvent[]
+  securityAlerts SecurityAlert[]
 
   @@map("cases")
 }
 
+// ============================================================
+// CASE ASSIGNMENT
+// Controls which users can access a particular case.
+// ============================================================
+
+model CaseAssignment {
+  id           String @id @default(uuid())
+  caseId       String @map("case_id")
+  userId       String @map("user_id")
+  assignedRole Role   @map("assigned_role")
+
+  assignedAt DateTime @default(now()) @map("assigned_at")
+  assignedBy String   @map("assigned_by")
+
+  status AssignmentStatus @default(active)
+
+  case Case @relation(fields: [caseId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  assigner User @relation("AssignmentCreatedBy", fields: [assignedBy], references: [id])
+
+  @@unique([caseId, userId])
+  @@index([userId])
+  @@index([caseId])
+  @@index([status])
+  @@map("case_assignments")
+}
+
+// ============================================================
+// DOCUMENT
+// Core secure-DMS document record.
+// ============================================================
+
+model Document {
+  id         String @id @default(uuid())
+  documentId String @unique @map("document_id")
+
+  caseId String @map("case_id")
+
+  title        String
+  documentType String              @map("document_type")
+  sensitivity  DocumentSensitivity @default(confidential)
+
+  description String?
+
+  currentVersion Int @default(1) @map("current_version")
+
+  integrityStatus IntegrityStatus @default(pending) @map("integrity_status")
+
+  createdById String @map("created_by_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  case Case @relation(fields: [caseId], references: [id])
+
+  createdBy User @relation("DocumentsCreated", fields: [createdById], references: [id])
+
+  versions        DocumentVersion[]
+  permissions     DocumentPermission[]
+  auditEvents     AuditEvent[]
+  emergencyAccess EmergencyAccess[]
+  SecurityAlert   SecurityAlert[]
+
+  @@index([caseId])
+  @@index([documentType])
+  @@index([sensitivity])
+  @@index([integrityStatus])
+  @@map("documents")
+}
+
+// ============================================================
+// DOCUMENT VERSION
+// Every uploaded/revised document gets a separate version.
+// ============================================================
+
+model DocumentVersion {
+  id String @id @default(uuid())
+
+  documentId    String @map("document_id")
+  versionNumber Int    @map("version_number")
+
+  originalFileName String @map("original_file_name")
+  mimeType         String @map("mime_type")
+  fileSize         BigInt @map("file_size")
+
+  storagePath String @map("storage_path")
+
+  // SHA-256 fingerprint of the original plaintext document.
+  sha256Hash String @map("sha256_hash")
+
+  // Information needed to decrypt the encrypted object.
+  // Actual secret/key material must NOT be stored here.
+  encryptionMetadata Json? @map("encryption_metadata")
+
+  uploadedById String @map("uploaded_by_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  document Document @relation(fields: [documentId], references: [id])
+
+  uploadedBy User @relation("DocumentVersionsUploaded", fields: [uploadedById], references: [id])
+
+  auditEvents AuditEvent[]
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId])
+  @@index([uploadedById])
+  @@index([sha256Hash])
+  @@map("document_versions")
+}
+
+// ============================================================
+// DOCUMENT PERMISSION
+// Fine-grained document-level permissions.
+// ============================================================
+
+model DocumentPermission {
+  id String @id @default(uuid())
+
+  documentId String @map("document_id")
+  userId     String @map("user_id")
+
+  action DocumentAction
+
+  grantedById String @map("granted_by_id")
+
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  document Document @relation(fields: [documentId], references: [id])
+
+  user User @relation(fields: [userId], references: [id])
+
+  grantedBy User @relation("PermissionGrantedBy", fields: [grantedById], references: [id])
+
+  @@unique([documentId, userId, action])
+  @@index([userId])
+  @@index([documentId])
+  @@index([expiresAt])
+  @@map("document_permissions")
+}
+
+// ============================================================
+// AUDIT EVENT
+// Central audit trail for security-sensitive operations.
+// ============================================================
+
+model AuditEvent {
+  id String @id @default(uuid())
+
+  userId     String? @map("user_id")
+  caseId     String? @map("case_id")
+  documentId String? @map("document_id")
+  versionId  String? @map("version_id")
+
+  action AuditAction
+
+  sha256Hash String? @map("sha256_hash")
+
+  blockchainTxHash String? @map("blockchain_tx_hash")
+  blockchainBlock  Int?    @map("blockchain_block")
+
+  metadata Json?
+
+  timestamp DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  case Case? @relation(fields: [caseId], references: [id])
+
+  document Document? @relation(fields: [documentId], references: [id])
+
+  version DocumentVersion? @relation(fields: [versionId], references: [id])
+
+  @@index([userId])
+  @@index([caseId])
+  @@index([documentId])
+  @@index([versionId])
+  @@index([action])
+  @@index([timestamp])
+  @@map("audit_events")
+}
+
+// ============================================================
+// SECURITY ALERT
+// Security monitoring and incident notifications.
+// ============================================================
+
+model SecurityAlert {
+  id String @id @default(uuid())
+
+  type     AlertType
+  severity AlertSeverity
+
+  message String
+
+  documentId String? @map("document_id")
+  caseId     String? @map("case_id")
+  userId     String? @map("user_id")
+
+  status AlertStatus @default(open)
+
+  metadata Json?
+
+  createdAt  DateTime  @default(now()) @map("created_at")
+  resolvedAt DateTime? @map("resolved_at")
+
+  document Document? @relation(fields: [documentId], references: [id])
+
+  case Case? @relation(fields: [caseId], references: [id])
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([severity])
+  @@index([status])
+  @@index([documentId])
+  @@index([caseId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("security_alerts")
+}
+
+// ============================================================
+// EMERGENCY / BREAK-GLASS ACCESS
+// Controlled temporary access to restricted documents.
+// ============================================================
+
+model EmergencyAccess {
+  id String @id @default(uuid())
+
+  documentId String @map("document_id")
+
+  requesterId String  @map("requester_id")
+  approverId  String? @map("approver_id")
+
+  reason String
+
+  status EmergencyAccessStatus @default(pending)
+
+  requestedAt DateTime  @default(now()) @map("requested_at")
+  approvedAt  DateTime? @map("approved_at")
+
+  expiresAt DateTime? @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+
+  document Document @relation(fields: [documentId], references: [id])
+
+  requester User @relation("EmergencyRequester", fields: [requesterId], references: [id])
+
+  approver User? @relation("EmergencyApprover", fields: [approverId], references: [id])
+
+  @@index([documentId])
+  @@index([requesterId])
+  @@index([approverId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("emergency_access")
+}
+
+// ============================================================
+// EXISTING EVIDENCE
+// Kept temporarily for compatibility.
+// This will eventually be migrated to Document + DocumentVersion.
+// ============================================================
+
 model Evidence {
-  id               String          @id @default(uuid())
-  evidenceId       String          @unique @map("evidence_id") // E-XXX
-  caseId           String?         @map("case_id") // nullable before case creation
-  complaintId      String          @map("complaint_id")
-  uploadedById     String          @map("uploaded_by_id")
-  sourceType       SourceType      @map("source_type")
-  evidenceType     EvidenceType    @map("evidence_type")
-  fileUrl          String          @map("file_url") // S3 or encrypted local path
-  sha256Hash        String?         @map("sha256_hash") // CHAR(64)
-  blockchainTxHash  String?         @map("blockchain_tx_hash")
-  blockchainBlock   Int?            @map("blockchain_block")
-  blockchainStatus  String?         @map("blockchain_status")
-  integrityStatus   IntegrityStatus @default(pending) @map("integrity_status")
-  metadata         Json?           // device info, capture timestamps, OCR text, source URLs
-  createdAt        DateTime        @default(now()) @map("created_at")
+  id         String @id @default(uuid())
+  evidenceId String @unique @map("evidence_id")
 
-  case             Case?           @relation(fields: [caseId], references: [id])
-  complaint        Complaint       @relation(fields: [complaintId], references: [id])
-  uploadedBy       User            @relation(fields: [uploadedById], references: [id])
-  custodyLogs      CustodyLog[]
+  caseId       String? @map("case_id")
+  complaintId  String  @map("complaint_id")
+  uploadedById String  @map("uploaded_by_id")
 
+  sourceType   SourceType   @map("source_type")
+  evidenceType EvidenceType @map("evidence_type")
+
+  fileUrl String @map("file_url")
+
+  sha256Hash String? @map("sha256_hash")
+
+  blockchainTxHash String? @map("blockchain_tx_hash")
+  blockchainBlock  Int?    @map("blockchain_block")
+  blockchainStatus String? @map("blockchain_status")
+
+  integrityStatus IntegrityStatus @default(pending) @map("integrity_status")
+
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  case Case? @relation(fields: [caseId], references: [id])
+
+  complaint Complaint @relation(fields: [complaintId], references: [id])
+
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+
+  custodyLogs CustodyLog[]
+
+  @@index([caseId])
+  @@index([complaintId])
+  @@index([uploadedById])
+  @@index([sha256Hash])
   @@map("evidence")
 }
 
+// ============================================================
+// EXISTING CHAIN OF CUSTODY
+// Kept temporarily and will later be connected to documents.
+// ============================================================
+
 model CustodyLog {
-  id                String       @id @default(uuid())
-  evidenceId        String       @map("evidence_id")
-  actorId           String       @map("actor_id")
-  actorRole         String       @map("actor_role")
-  action            CustodyAction
-  recordedSha256Hash String      @map("recorded_sha256_hash") // CHAR(64)
-  remarks           String?
-  timestamp         DateTime     @default(now())
+  id String @id @default(uuid())
 
-  evidence          Evidence     @relation(fields: [evidenceId], references: [id])
-  actor             User         @relation(fields: [actorId], references: [id])
+  evidenceId String @map("evidence_id")
+  actorId    String @map("actor_id")
 
+  actorRole String @map("actor_role")
+
+  action CustodyAction
+
+  recordedSha256Hash String @map("recorded_sha256_hash")
+
+  remarks String?
+
+  timestamp DateTime @default(now())
+
+  evidence Evidence @relation(fields: [evidenceId], references: [id])
+
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([evidenceId])
+  @@index([actorId])
+  @@index([timestamp])
   @@map("chain_of_custody_logs")
 }

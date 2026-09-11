@@ -1,22 +1,43 @@
 const express = require('express');
+
 const router = express.Router();
-const { verifyToken, requireRoles } = require('../middleware/authMiddleware');
+
+const {
+  verifyToken,
+  authorize,
+  requireDocumentPermission,
+} = require('../middleware/authMiddleware');
+
 const evidenceCtrl = require('../controllers/evidenceController');
 
 // All custody routes require authentication.
 router.use(verifyToken);
 
-// POST /custody/log -> append an immutable custody step
+/**
+ * POST /custody/log
+ *
+ * Append a custody event for a document.
+ *
+ * The controller receives documentId in the request body.
+ * Write access is limited to users who have the custody:write
+ * capability and permission on the document.
+ */
 router.post(
   '/log',
-  requireRoles('police', 'investigator', 'forensic', 'judge', 'admin'),
+  authorize('custody:write'),
+  requireDocumentPermission('update'),
   evidenceCtrl.logCustody
 );
 
-// GET /custody/:evidenceId -> chronological timeline (public E-XXX id)
+/**
+ * GET /custody/:documentId
+ *
+ * Return the chronological chain-of-custody timeline.
+ */
 router.get(
-  '/:evidenceId',
-  requireRoles('police', 'investigator', 'forensic', 'lawyer', 'judge', 'admin'),
+  '/:documentId',
+  authorize('custody:read'),
+  requireDocumentPermission('view'),
   evidenceCtrl.getCustodyTimeline
 );
 

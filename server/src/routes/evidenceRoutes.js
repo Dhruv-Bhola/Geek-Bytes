@@ -1,75 +1,283 @@
 const express = require('express');
+
 const router = express.Router();
-const ctrl = require('../controllers/evidenceController');
+
+/*
+ * ============================================================
+ * FILE UPLOAD / MULTER
+ * ============================================================
+ */
 const {
-  verifyToken,
-  requireRoles,
-} = require('../middleware/authMiddleware');
-const {
+  documentUpload,
   victimUpload,
   policeUpload,
   socialUpload,
 } = require('../services/storage');
 
-// All evidence and custody routes require authentication.
+/*
+ * ============================================================
+ * AUTHORIZATION
+ * ============================================================
+ */
+const {
+  verifyToken,
+  requireRoles,
+  authorize,
+  requireCaseAssignment,
+  requireDocumentPermission,
+} = require('../middleware/authMiddleware');
+
+/*
+ * ============================================================
+ * CONTROLLER
+ * ============================================================
+ */
+const evidenceCtrl = require('../controllers/evidenceController');
+
+/*
+ * Every evidence/document endpoint requires authentication.
+ */
 router.use(verifyToken);
 
-// ---------------------------------------------------------------------------
-// List evidence for a case (vault loader). Declared before the dynamic
-// `:evidenceId/...` routes so `case/:caseId` is never captured by them.
-// ---------------------------------------------------------------------------
+/*
+ * ============================================================
+ * CASE DOCUMENTS
+ * ============================================================
+ */
+
+/**
+ * GET /api/v1/evidence/case/:caseId
+ *
+ * List documents belonging to a case.
+ *
+ * Security:
+ *   JWT
+ *    ↓
+ *   Role capability
+ *    ↓
+ *   Active case assignment
+ */
 router.get(
   '/case/:caseId',
-  requireRoles('police', 'investigator', 'forensic', 'lawyer', 'judge', 'admin'),
-  ctrl.getCaseEvidence
+  authorize('case:read_assigned'),
+  requireCaseAssignment(),
+  evidenceCtrl.getCaseEvidence
 );
 
-// ---------------------------------------------------------------------------
-// Victim uploads: screenshots, PDFs, images, chat exports, audio (<= 50MB)
-// ---------------------------------------------------------------------------
+/*
+ * ============================================================
+ * DOCUMENT UPLOAD
+ * ============================================================
+ */
+
+/**
+ * POST /api/v1/evidence/documents/upload
+ *
+ * Primary Secure DMS document upload endpoint.
+ *
+ * multipart/form-data:
+ *
+ *   file
+ *   caseId
+ *   title
+ *   documentType
+ *   sensitivity
+ *   description
+ *   metadata
+ *
+ * Processing:
+ *
+ *   Multer staging
+ *        ↓
+ *   SHA-256
+ *        ↓
+ *   AES-256-GCM
+ *        ↓
+ *   Document
+ *        ↓
+ *   DocumentVersion
+ *        ↓
+ *   DocumentPermission
+ *        ↓
+ *   AuditEvent
+ *        ↓
+ *   Blockchain anchor
+ */
 router.post(
-  '/victim',
-  requireRoles('victim', 'admin'),
-  victimUpload.single('file'),
-  ctrl.uploadVictimEvidence
+  '/documents/upload',
+  documentUpload.single('file'),
+  requireRoles(
+    'police',
+    'investigator',
+    'forensic',
+    'admin'
+  ),
+  authorize('document:upload'),
+  evidenceCtrl.uploadPoliceEvidence
 );
 
-// ---------------------------------------------------------------------------
-// Police/forensic uploads: heavy CCTV/video (<= 5GB, streamed)
-// ---------------------------------------------------------------------------
+/**
+ * POST /api/v1/evidence/upload/police
+ *
+ * Backwards-compatible police/forensic upload endpoint.
+ */
 router.post(
-  '/police',
-  requireRoles('police', 'investigator', 'forensic', 'admin'),
+  '/upload/police',
   policeUpload.single('file'),
-  ctrl.uploadPoliceEvidence
+  requireRoles(
+    'police',
+    'investigator',
+    'forensic',
+    'admin'
+  ),
+  authorize('document:upload'),
+  evidenceCtrl.uploadPoliceEvidence
 );
 
-// ---------------------------------------------------------------------------
-// Social media preservation (optional snapshot file)
-// ---------------------------------------------------------------------------
+/**
+ * POST /api/v1/evidence/upload/victim
+ *
+ * Kept for compatibility with the previous system.
+ */
 router.post(
-  '/social-preserve',
-  requireRoles('police', 'investigator', 'forensic', 'admin'),
-  socialUpload.single('snapshot'),
-  ctrl.preserveSocialEvidence
+  '/upload/victim',
+  victimUpload.single('file'),
+  requireRoles(
+    'victim',
+    'admin'
+  ),
+  authorize('document:upload'),
+  evidenceCtrl.uploadVictimEvidence
 );
 
-// ---------------------------------------------------------------------------
-// Integrity verification: liveHash === storedHash === onChainHash
-// ---------------------------------------------------------------------------
-router.get(
-  '/:evidenceId/verify',
-  requireRoles('police', 'investigator', 'forensic', 'admin'),
-  ctrl.verifyEvidence
+/**
+ * POST /api/v1/evidence/preserve/social
+ *
+ * Social-media preservation.
+ *
+ * Snapshot file is optional.
+ */
+router.post(
+  '/preserve/social',
+  socialUpload.single('file'),
+  requireRoles(
+    'police',
+    'investigator',
+    'forensic',
+    'admin'
+  ),
+  authorize('document:upload'),
+  evidenceCtrl.preserveSocialEvidence
 );
 
-// ---------------------------------------------------------------------------
-// Decrypted streaming download (Police, Investigator, Judge)
-// ---------------------------------------------------------------------------
+/*
+ * ============================================================
+ * SINGLE DOCUMENT
+ * ============================================================
+ */
+
+/**
+ * GET /api/v1/evidence/:documentId
+ *
+ * Get document metadata and version history.
+ *
+ * Security:
+ *   1. Authentication
+ *   2. Role capability
+ *   3. Case assignment
+ *   4. Explicit document VIEW permission
+ */
 router.get(
-  '/:evidenceId/download',
-  requireRoles('police', 'investigator', 'forensic', 'judge', 'admin'),
-  ctrl.downloadEvidence
+  '/:documentId',
+  authorize('document:read'),
+  requireDocumentPermission('view'),
+  evidenceCtrl.getDocument
+);
+
+/**
+ * POST /api/v1/evidence/:documentId/verify
+ *
+ * Verify:
+ *
+ *   Stored SHA-256
+ *          =
+ *   Live decrypted SHA-256
+ *          =
+ *   Blockchain hash
+ *
+ * On mismatch:
+ *
+ *   integrityStatus = tampered
+ *   SecurityAlert created
+ *   AuditEvent created
+ *   Access can be blocked
+ */
+router.post(
+  '/:documentId/verify',
+  requireRoles(
+    'police',
+    'investigator',
+    'forensic',
+    'admin'
+  ),
+  authorize('document:verify'),
+  requireDocumentPermission('verify'),
+  evidenceCtrl.verifyEvidence
+);
+
+/**
+ * GET /api/v1/evidence/:documentId/download
+ *
+ * Download only after:
+ *
+ *   Authorization
+ *        +
+ *   Case assignment
+ *        +
+ *   Document permission
+ *        +
+ *   Integrity verification
+ */
+router.get(
+  '/:documentId/download',
+  authorize('document:download'),
+  requireDocumentPermission('download'),
+  evidenceCtrl.downloadEvidence
+);
+
+/*
+ * ============================================================
+ * CUSTODY / AUDIT
+ * ============================================================
+ */
+
+/**
+ * POST /api/v1/evidence/custody
+ *
+ * Append a custody event.
+ */
+router.post(
+  '/custody',
+  requireRoles(
+    'police',
+    'investigator',
+    'forensic',
+    'admin'
+  ),
+  authorize('custody:write'),
+  evidenceCtrl.logCustody
+);
+
+/**
+ * GET /api/v1/evidence/:documentId/custody
+ *
+ * Retrieve document custody/audit timeline.
+ */
+router.get(
+  '/:documentId/custody',
+  authorize('custody:read'),
+  requireDocumentPermission('view'),
+  evidenceCtrl.getCustodyTimeline
 );
 
 module.exports = router;

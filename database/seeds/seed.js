@@ -71,6 +71,16 @@ const DEMO_USERS = [
     badgeNumber: 'JD-1023',
     jurisdictionCell: 'Cyber Crimes Court',
   },
+    {
+    customUserId: 'admin_sih',
+    fullName: 'System Administrator',
+    email: 'admin@dms.gov',
+    phone: '6264026256',
+    password: DEMO_PASSWORD,
+    role: 'admin',
+    badgeNumber: 'ADM-0001',
+    jurisdictionCell: 'Central Administration',
+  },
 ];
 
 async function upsertUsers() {
@@ -268,6 +278,12 @@ async function main() {
 
   const complaint = await seedComplaint(victimId);
   const caseRecord = await seedCase(complaint.id, officerId);
+    await seedCaseAssignments(
+    caseRecord.id,
+    officerId,
+    forensicId,
+    userIds
+  );
   const evidenceIds = await seedEvidence(caseRecord.id, complaint.id, victimId, officerId, forensicId);
   await seedCustody(evidenceIds, userIds, caseRecord.id);
 
@@ -277,8 +293,59 @@ async function main() {
   console.log('  Rahul123 (Police)');
   console.log('  forensic_anil (Forensic/Investigator)');
   console.log('  legal_verma (Judge)');
+  console.log('  admin_sih (Admin)');
 }
+async function seedCaseAssignments(
+  caseId,
+  officerId,
+  forensicId,
+  userIds
+) {
+  const assignments = [
+    {
+      userId: officerId,
+      assignedRole: 'police',
+    },
+    {
+      userId: forensicId,
+      assignedRole: 'forensic',
+    },
+    {
+      userId: userIds.legal_verma,
+      assignedRole: 'judge',
+    },
+  ];
 
+  for (const assignment of assignments) {
+    await prisma.caseAssignment.upsert({
+      where: {
+        caseId_userId: {
+          caseId,
+          userId: assignment.userId,
+        },
+      },
+      update: {
+        assignedRole: assignment.assignedRole,
+        assignedBy: officerId,
+        status: 'active',
+      },
+      create: {
+        caseId,
+        userId: assignment.userId,
+        assignedRole: assignment.assignedRole,
+        assignedBy: officerId,
+        status: 'active',
+      },
+    });
+
+    console.log(
+      `  assignment: ${assignment.userId} -> ${assignment.assignedRole}`
+    );
+  }
+
+  // Admin has global access through RBAC and does not need
+  // a case assignment.
+}
 main()
   .catch((err) => {
     console.error('Seeding error:', err);

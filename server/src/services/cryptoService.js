@@ -1,148 +1,435 @@
-const crypto = require('crypto');
 const fs = require('fs');
-const { Transform } = require('stream');
+const fsp = require('fs/promises');
+const crypto = require('crypto');
 
-const SHA256_ALGO = 'sha256';
-const CIPHER_ALGO = 'aes-256-gcm'; // authenticated encryption
-const IV_LENGTH = 16; // bytes
-const AUTH_TAG_LENGTH = 16; // bytes
 
-/**
- * Derive a 32-byte AES-256 key from the configured hex key or a default.
- * The key is 64 hex chars = 32 bytes.
+/*
+ * ============================================================
+ * SECURE CRYPTOGRAPHY SERVICE
+ * ============================================================
+ *
+ * Document security model:
+ *
+ *   Original file
+ *        ↓
+ *   SHA-256 hash
+ *        ↓
+ *   AES-256-GCM encryption
+ *        ↓
+ *   Encrypted storage
+ *
+ * The SHA-256 hash identifies the original plaintext.
+ * AES-256-GCM provides confidentiality + authenticated
+ * encryption for the stored artifact.
+ *
+ * IMPORTANT:
+ * The AES key is supplied through AES_256_KEY.
+ * There is NO insecure development/default key fallback.
  */
-function getAesKey(key = process.env.AES_256_KEY) {
-  const hex = String(key || '');
-  if (hex.length === 64 && /^[0-9a-fA-F]{64}$/.test(hex)) {
-    return Buffer.from(hex, 'hex');
+
+const ALGORITHM = 'aes-256-gcm';
+const KEY_LENGTH = 32;
+const IV_LENGTH = 12;
+const AUTH_TAG_LENGTH = 16;
+
+/*
+ * ============================================================
+ * KEY MANAGEMENT
+ * ============================================================
+ *
+ * Expected environment value:
+ *
+ * AES_256_KEY=<64 hexadecimal characters>
+ *
+ * Example generation:
+ *
+ *   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+ */
+function getAesKey() {
+  const configuredKey =
+    process.env.AES_256_KEY;
+
+  if (!configuredKey) {
+    throw new Error(
+      'AES_256_KEY is not configured. Refusing to use an insecure fallback key.'
+    );
   }
-  // Fallback: SHA-256 the provided string to a stable 32-byte key.
-  return crypto.createHash('sha256').update(hex || 'dms-dev-key').digest();
+
+  if (!/^[0-9a-fA-F]+$/.test(configuredKey)) {
+    throw new Error(
+      'AES_256_KEY must contain hexadecimal characters only.'
+    );
+  }
+
+  if (configuredKey.length !== KEY_LENGTH * 2) {
+    throw new Error(
+      `AES_256_KEY must be exactly ${KEY_LENGTH * 2} hexadecimal characters (32 bytes).`
+    );
+  }
+
+  return Buffer.from(configuredKey, 'hex');
 }
 
-// ==========================================================================
-// DETERMINISTIC SHA-256
-// ==========================================================================
+/*
+ * ============================================================
+ * SHA-256
+ * ============================================================
+ */
 
 /**
- * SHA-256 of a Buffer (string input supported).
- * Returns the 64-character lowercase hex digest.
+ * SHA-256 for strings or Buffers.
  */
 function sha256(data) {
-  const input = Buffer.isBuffer(data) ? data : Buffer.from(String(data));
-  return crypto.createHash(SHA256_ALGO).update(input).digest('hex');
-}
+  const hash = crypto.createHash('sha256');
 
-/**
- * Streaming SHA-256 of a file on disk. Handles arbitrarily large files
- * without loading them fully into memory.
- */
-async function sha256File(filePath) {
-  const hash = crypto.createHash(SHA256_ALGO);
-  await new Promise((resolve, reject) => {
-    const stream = fs.createReadStream(filePath);
-    stream.on('data', (chunk) => hash.update(chunk));
-    stream.on('end', () => resolve());
-    stream.on('error', reject);
-  });
+  if (Buffer.isBuffer(data)) {
+    hash.update(data);
+  } else {
+    hash.update(String(data), 'utf8');
+  }
+
   return hash.digest('hex');
 }
 
 /**
- * Compute the SHA-256 of a stream of Buffers.
+ * Stream SHA-256 over a file.
+ *
+ * The original plaintext is hashed before encryption.
+ * This keeps memory usage bounded for large CCTV/video files.
  */
-function sha256FromStream(inputStream) {
+function sha256File(filePath) {
   return new Promise((resolve, reject) => {
-    const hash = crypto.createHash(SHA256_ALGO);
-    inputStream.on('data', (chunk) => hash.update(chunk));
-    inputStream.on('end', () => resolve(hash.digest('hex')));
-    inputStream.on('error', reject);
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+
+    stream.on('data', (chunk) => {
+      hash.update(chunk);
+    });
+
+    stream.on('error', reject);
+
+    stream.on('end', () => {
+      try {
+        resolve(hash.digest('hex'));
+      } catch (err) {
+        reject(err);
+      }
+    });
   });
 }
 
-// ==========================================================================
-// AES-256-GCM ENCRYPTION (authenticated)
-// ==========================================================================
+/*
+ * ============================================================
+ * BUFFER ENCRYPTION
+ * ============================================================
+ */
 
 /**
- * Encrypt a Buffer with AES-256-GCM. Returns ciphertext, IV, and auth tag.
- * Stores the IV/tag as hex so they can be persisted alongside the record.
+ * Encrypt a Buffer using AES-256-GCM.
+ *
+ * Returns:
+ *   encrypted
+ *   iv
+ *   authTag
+ *
+ * All binary crypto metadata is returned as hex strings.
  */
-function encryptBuffer(plaintext, key = process.env.AES_256_KEY) {
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(CIPHER_ALGO, getAesKey(key), iv);
+function encryptBuffer(data) {
+  const key = getAesKey();
 
-  const encrypted = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+  const iv = crypto.randomBytes(IV_LENGTH);
+
+  const cipher = crypto.createCipheriv(
+    ALGORITHM,
+    key,
+    iv,
+    {
+      authTagLength: AUTH_TAG_LENGTH,
+    }
+  );
+
+  const encrypted = Buffer.concat([
+    cipher.update(
+      Buffer.isBuffer(data)
+        ? data
+        : Buffer.from(String(data), 'utf8')
+    ),
+    cipher.final(),
+  ]);
+
   const authTag = cipher.getAuthTag();
 
   return {
-    ciphertext: encrypted,
+    encrypted,
     iv: iv.toString('hex'),
     authTag: authTag.toString('hex'),
   };
 }
 
 /**
- * Decrypt a Buffer encrypted with encryptBuffer. Throws on tamper
- * (GCM authenticates the ciphertext and will reject modifications).
+ * Decrypt a Buffer using AES-256-GCM.
  */
-function decryptBuffer({ ciphertext, iv, authTag }, key = process.env.AES_256_KEY) {
-  const decipher = crypto.createDecipheriv(
-    CIPHER_ALGO,
-    getAesKey(key),
-    Buffer.from(iv, 'hex')
+function decryptBuffer(
+  encrypted,
+  ivHex,
+  authTagHex
+) {
+  const key = getAesKey();
+
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(
+    authTagHex,
+    'hex'
   );
-  decipher.setAuthTag(Buffer.from(authTag, 'hex'));
-  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+
+  validateIvAndAuthTag(iv, authTag);
+
+  const decipher = crypto.createDecipheriv(
+    ALGORITHM,
+    key,
+    iv,
+    {
+      authTagLength: AUTH_TAG_LENGTH,
+    }
+  );
+
+  decipher.setAuthTag(authTag);
+
+  return Buffer.concat([
+    decipher.update(encrypted),
+    decipher.final(),
+  ]);
 }
 
-/**
- * Encrypt a file on disk in-place to a new encrypted target file and return
- * the { iv, authTag } used, writing the ciphertext to `destPath`.
+/*
+ * ============================================================
+ * STREAMING FILE ENCRYPTION
+ * ============================================================
  */
-async function encryptFileToDisk(sourcePath, destPath, key = process.env.AES_256_KEY) {
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(CIPHER_ALGO, getAesKey(key), iv);
 
-  const outStream = fs.createWriteStream(destPath);
-  await new Promise((resolve, reject) => {
-    fs.createReadStream(sourcePath)
+/**
+ * Encrypt a file directly to disk using AES-256-GCM.
+ *
+ * This function:
+ *
+ *   - streams the source file
+ *   - never loads the whole document into memory
+ *   - generates a fresh IV for every file
+ *   - writes encrypted output to destination
+ *   - returns IV + authentication tag
+ */
+function encryptFileToDisk(sourcePath, destinationPath) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let outputCreated = false;
+
+    const key = getAesKey();
+    const iv = crypto.randomBytes(IV_LENGTH);
+
+    const cipher = crypto.createCipheriv(
+      ALGORITHM,
+      key,
+      iv,
+      {
+        authTagLength: AUTH_TAG_LENGTH,
+      }
+    );
+
+    const input = fs.createReadStream(sourcePath);
+
+    const output = fs.createWriteStream(
+      destinationPath,
+      {
+        flags: 'wx',
+      }
+    );
+
+    output.once('open', () => {
+      outputCreated = true;
+    });
+
+    const fail = async (err) => {
+      if (settled) return;
+
+      settled = true;
+
+      input.destroy();
+      cipher.destroy();
+      output.destroy();
+
+      // Only remove the file if THIS operation created it.
+      if (outputCreated) {
+        await fsp
+          .unlink(destinationPath)
+          .catch(() => {});
+      }
+
+      reject(err);
+    };
+
+    input.on('error', fail);
+    cipher.on('error', fail);
+    output.on('error', fail);
+
+    output.on('finish', () => {
+      if (settled) return;
+
+      try {
+        const authTag = cipher.getAuthTag();
+
+        if (authTag.length !== AUTH_TAG_LENGTH) {
+          throw new Error(
+            'Unexpected AES-GCM authentication tag length.'
+          );
+        }
+
+        settled = true;
+
+        resolve({
+          iv: iv.toString('hex'),
+          authTag: authTag.toString('hex'),
+        });
+      } catch (err) {
+        fail(err);
+      }
+    });
+
+    input
       .pipe(cipher)
-      .pipe(outStream)
-      .on('finish', resolve)
-      .on('error', reject);
+      .pipe(output);
   });
-  outStream.close();
-
-  return {
-    iv: iv.toString('hex'),
-    authTag: cipher.getAuthTag().toString('hex'),
-  };
 }
+
+/*
+ * ============================================================
+ * STREAMING FILE DECRYPTION
+ * ============================================================
+ */
 
 /**
- * Return a readable Transform stream that decrypts ciphertext input
- * using the supplied IV and auth tag. Use with pipes to serve files.
+ * Create an AES-256-GCM decrypt stream.
+ *
+ * Authentication metadata must be supplied by the caller:
+ *
+ *   {
+ *     iv: "...",
+ *     authTag: "..."
+ *   }
+ *
+ * The final GCM authentication check occurs when the stream
+ * reaches the end and decipher.final() executes.
  */
-function createDecryptStream({ iv, authTag }, key = process.env.AES_256_KEY) {
-  const decipher = crypto.createDecipheriv(
-    CIPHER_ALGO,
-    getAesKey(key),
-    Buffer.from(iv, 'hex')
+function createDecryptStream({
+  iv,
+  authTag,
+}) {
+  if (!iv || !authTag) {
+    throw new Error(
+      'IV and authentication tag are required for decryption.'
+    );
+  }
+
+  const key = getAesKey();
+
+  const ivBuffer = Buffer.from(
+    iv,
+    'hex'
   );
-  decipher.setAuthTag(Buffer.from(authTag, 'hex'));
-  return decipher; // decipher is a Transform stream
+
+  const authTagBuffer = Buffer.from(
+    authTag,
+    'hex'
+  );
+
+  validateIvAndAuthTag(
+    ivBuffer,
+    authTagBuffer
+  );
+
+  const decipher = crypto.createDecipheriv(
+    ALGORITHM,
+    key,
+    ivBuffer,
+    {
+      authTagLength: AUTH_TAG_LENGTH,
+    }
+  );
+
+  decipher.setAuthTag(authTagBuffer);
+
+  return decipher;
 }
+
+/*
+ * ============================================================
+ * VALIDATION
+ * ============================================================
+ */
+
+function validateIvAndAuthTag(
+  iv,
+  authTag
+) {
+  if (
+    !Buffer.isBuffer(iv) ||
+    iv.length !== IV_LENGTH
+  ) {
+    throw new Error(
+      `Invalid AES-GCM IV. Expected ${IV_LENGTH} bytes.`
+    );
+  }
+
+  if (
+    !Buffer.isBuffer(authTag) ||
+    authTag.length !== AUTH_TAG_LENGTH
+  ) {
+    throw new Error(
+      `Invalid AES-GCM authentication tag. Expected ${AUTH_TAG_LENGTH} bytes.`
+    );
+  }
+}
+
+/*
+ * ============================================================
+ * UTILITY
+ * ============================================================
+ */
+
+/**
+ * Securely check whether a path exists and is a regular file.
+ */
+async function fileExists(filePath) {
+  try {
+    const stats =
+      await fsp.stat(filePath);
+
+    return stats.isFile();
+  } catch {
+    return false;
+  }
+}
+
+/*
+ * ============================================================
+ * EXPORTS
+ * ============================================================
+ */
 
 module.exports = {
-  SHA256_ALGO,
-  CIPHER_ALGO,
   sha256,
   sha256File,
-  sha256FromStream,
+
   encryptBuffer,
   decryptBuffer,
+
   encryptFileToDisk,
   createDecryptStream,
+
   getAesKey,
+  fileExists,
+
+  ALGORITHM,
+  KEY_LENGTH,
+  IV_LENGTH,
+  AUTH_TAG_LENGTH,
 };

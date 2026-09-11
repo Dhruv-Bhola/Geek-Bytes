@@ -1,26 +1,71 @@
 const express = require('express');
 const router = express.Router();
+
 const authController = require('../controllers/authController');
-const { verifyToken } = require('../middleware/authMiddleware');
-const { roleValidation } = require('../middleware/validation');
 
-const VALID_ROLES = ['police', 'investigator', 'forensic', 'lawyer', 'judge', 'victim', 'admin'];
+const {
+  verifyToken,
+} = require('../middleware/authMiddleware');
 
-// POST /register - create account, issue tokens
-router.post('/register', [
-  ...roleValidation(VALID_ROLES),
-], authController.register);
+const {
+  roleValidation,
+} = require('../middleware/validation');
 
-// POST /login - authenticate by email or custom_user_id
-router.post('/login', authController.login);
+const VALID_ROLES = [
+  'police',
+  'investigator',
+  'forensic',
+  'lawyer',
+  'judge',
+  'victim',
+  'admin',
+];
 
-// POST /refresh - rotate tokens
-router.post('/refresh', authController.refreshToken);
+/*
+ * Public authentication routes
+ */
 
-// GET /me - current profile (protected)
-router.get('/me', verifyToken, authController.getMe);
+// Public registration remains disabled by the controller.
+router.post(
+  '/register',
+  [
+    ...roleValidation(VALID_ROLES),
+  ],
+  authController.register
+);
 
-// legacy alias: GET /profile
-router.get('/profile', verifyToken, authController.getMe);
+// Step 1: identifier + password
+router.post(
+  '/login',
+  authController.login
+);
+
+// Step 2: OTP verification
+router.post(
+  '/verify-mfa',
+  authController.verifyMfa
+);
+
+// Refresh access/refresh tokens
+router.post(
+  '/refresh',
+  authController.refreshToken
+);
+
+/*
+ * Protected authentication routes
+ */
+
+router.get(
+  '/me',
+  verifyToken,
+  authController.getMe
+);
+
+router.get(
+  '/profile',
+  verifyToken,
+  authController.getMe
+);
 
 module.exports = router;
