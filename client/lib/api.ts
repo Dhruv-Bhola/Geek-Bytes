@@ -1923,7 +1923,80 @@ export async function uploadDocument(
       ),
   };
 }
+/**
+ * ============================================================================
+ * SECURE DOCUMENT PREVIEW
+ * ============================================================================
+ *
+ * Fetches the document through the authenticated backend endpoint and
+ * creates a temporary browser object URL for previewing it.
+ *
+ * The raw storage URL is never exposed to the frontend.
+ */
+export async function getDocumentPreviewUrl(
+  documentId: string
+): Promise<{
+  url: string;
+  contentType: string;
+}> {
+  if (typeof window === "undefined") {
+    throw new Error(
+      "Document preview must run in the browser."
+    );
+  }
 
+  const token = getAccessToken();
+
+  const response = await fetch(
+    `${API_BASE_URL}/evidence/${encodeURIComponent(
+      documentId
+    )}/download`,
+    {
+      method: "GET",
+      headers: {
+        Accept:
+          "application/pdf,image/*,application/octet-stream",
+        ...(token
+          ? {
+              Authorization: `Bearer ${token}`,
+            }
+          : {}),
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const body = await parseResponseBody(response);
+
+    throw new Error(
+      getBackendError(
+        body,
+        `Preview failed with status ${response.status}`
+      )
+    );
+  }
+
+  const blob = await response.blob();
+
+  if (!blob.size) {
+    throw new Error(
+      "The server returned an empty document."
+    );
+  }
+
+  const contentType =
+    response.headers.get("Content-Type") ||
+    blob.type ||
+    "application/octet-stream";
+
+  const url =
+    window.URL.createObjectURL(blob);
+
+  return {
+    url,
+    contentType,
+  };
+}
 /**
  * ============================================================================
  * SECURE DOCUMENT DOWNLOAD

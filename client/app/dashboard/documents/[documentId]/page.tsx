@@ -3,11 +3,15 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
+
 import {
   Download,
   ShieldCheck,
   FileText,
   Loader2,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
 } from "lucide-react";
 
 import {
@@ -15,6 +19,7 @@ import {
   getCustodyEvents,
   verifyIntegrity,
   downloadDocument,
+  getDocumentPreviewUrl,
 } from "@/lib/api";
 
 import type {
@@ -66,15 +71,31 @@ export default function DocumentViewerPage() {
   const [loadingCustody, setLoadingCustody] =
     useState(false);
 
+  const [previewUrl, setPreviewUrl] =
+    useState<string | null>(null);
+
+  const [previewType, setPreviewType] =
+    useState<string>("");
+
+  const [previewLoading, setPreviewLoading] =
+    useState(false);
+
+  const [previewError, setPreviewError] =
+    useState("");
+
+  const [zoom, setZoom] =
+    useState(1);
+
   const [error, setError] =
     useState("");
 
   const [verifyMessage, setVerifyMessage] =
     useState("");
 
-  /**
-   * Load document metadata.
-   */
+  // ============================================================
+  // LOAD DOCUMENT
+  // ============================================================
+
   useEffect(() => {
     if (!documentId) {
       return;
@@ -124,9 +145,10 @@ export default function DocumentViewerPage() {
     };
   }, [documentId]);
 
-  /**
-   * Load chain-of-custody events.
-   */
+  // ============================================================
+  // LOAD CUSTODY
+  // ============================================================
+
   useEffect(() => {
     if (!documentId) {
       return;
@@ -173,9 +195,85 @@ export default function DocumentViewerPage() {
     };
   }, [documentId]);
 
-  /**
-   * Real backend integrity verification.
-   */
+  // ============================================================
+  // LOAD SECURE PREVIEW
+  // ============================================================
+
+  useEffect(() => {
+    if (!documentId) {
+      return;
+    }
+
+    let cancelled = false;
+    let objectUrl: string | null = null;
+
+    async function loadPreview() {
+      try {
+        setPreviewLoading(true);
+        setPreviewError("");
+        setPreviewUrl(null);
+        setPreviewType("");
+        setZoom(1);
+
+        const preview =
+          await getDocumentPreviewUrl(
+            documentId
+          );
+
+        if (cancelled) {
+          window.URL.revokeObjectURL(
+            preview.url
+          );
+
+          return;
+        }
+
+        objectUrl = preview.url;
+
+        setPreviewUrl(
+          preview.url
+        );
+
+        setPreviewType(
+          preview.contentType
+        );
+      } catch (err) {
+        console.error(
+          "Failed to load document preview:",
+          err
+        );
+
+        if (!cancelled) {
+          setPreviewError(
+            err instanceof Error
+              ? err.message
+              : "Unable to load document preview."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setPreviewLoading(false);
+        }
+      }
+    }
+
+    loadPreview();
+
+    return () => {
+      cancelled = true;
+
+      if (objectUrl) {
+        window.URL.revokeObjectURL(
+          objectUrl
+        );
+      }
+    };
+  }, [documentId]);
+
+  // ============================================================
+  // VERIFY INTEGRITY
+  // ============================================================
+
   async function handleReverify() {
     if (!documentId) {
       return;
@@ -228,9 +326,10 @@ export default function DocumentViewerPage() {
     }
   }
 
-  /**
-   * Secure backend download.
-   */
+  // ============================================================
+  // DOWNLOAD
+  // ============================================================
+
   async function handleDownload() {
     if (!documentId) {
       return;
@@ -258,6 +357,10 @@ export default function DocumentViewerPage() {
       setDownloading(false);
     }
   }
+
+  // ============================================================
+  // LOADING / ERROR
+  // ============================================================
 
   if (doc === undefined) {
     return (
@@ -295,38 +398,29 @@ export default function DocumentViewerPage() {
     doc.integrityStatus ===
     "mismatch";
 
-  /**
-   * Permission-aware UI.
-   *
-   * The backend remains the final security barrier.
-   * These flags only control which actions are visible
-   * to the current user.
-   */
-  const documentPermissions = (
-    doc as DocumentRecord & {
-      permissions?: unknown;
-    }
-  ).permissions;
+  const isPdf =
+    previewType.includes(
+      "application/pdf"
+    ) ||
+    /\.pdf$/i.test(
+      doc.name
+    );
 
-  const permissions =
-    Array.isArray(documentPermissions)
-      ? documentPermissions.map((permission: unknown) =>
-          String(permission).toLowerCase()
-        )
-      : ["view"];
-
-  const canDownload =
-    permissions.includes("download");
-
-  const canVerify =
-    permissions.includes("verify");
-
-  const canUpdate =
-    permissions.includes("update");
+  const isImage =
+    previewType.startsWith(
+      "image/"
+    ) ||
+    /\.(png|jpg|jpeg|gif|webp)$/i.test(
+      doc.name
+    );
 
   return (
     <div className="space-y-5">
-      {/* Header */}
+
+      {/* ======================================================
+          HEADER
+      ======================================================= */}
+
       <div className="flex flex-wrap items-center gap-3">
         <FileText
           className="text-ink-500"
@@ -361,7 +455,10 @@ export default function DocumentViewerPage() {
         />
       </div>
 
-      {/* Error message */}
+      {/* ======================================================
+          ERROR
+      ======================================================= */}
+
       {error && (
         <p
           role="alert"
@@ -371,7 +468,10 @@ export default function DocumentViewerPage() {
         </p>
       )}
 
-      {/* Integrity verification result */}
+      {/* ======================================================
+          VERIFICATION MESSAGE
+      ======================================================= */}
+
       {verifyMessage && (
         <p
           role="status"
@@ -385,7 +485,10 @@ export default function DocumentViewerPage() {
         </p>
       )}
 
-      {/* Tabs */}
+      {/* ======================================================
+          TABS
+      ======================================================= */}
+
       <div className="flex gap-1 border-b border-surface-border">
         {TABS.map((t) => (
           <button
@@ -394,7 +497,7 @@ export default function DocumentViewerPage() {
             onClick={() =>
               setTab(t)
             }
-            className={`px-4 py-2 text-sm font-medium ${
+            className={`px-4 py-2 text-sm font-medium transition ${
               tab === t
                 ? "border-b-2 border-navy-700 text-navy-800"
                 : "text-ink-500 hover:text-ink-900"
@@ -405,25 +508,229 @@ export default function DocumentViewerPage() {
         ))}
       </div>
 
-      {/* ================================================================ */}
-      {/* VIEW TAB                                                         */}
-      {/* ================================================================ */}
+      {/* ======================================================
+          VIEW TAB
+      ======================================================= */}
 
       {tab === "View" && (
         <div className="grid gap-4 lg:grid-cols-3">
-          {/* Secure document preview placeholder */}
-          <div className="flex h-96 items-center justify-center rounded-card border border-surface-border bg-surface-card text-sm text-ink-400 lg:col-span-2">
-            PDF preview renders here once the backend returns a secure,
-            time-limited file URL.
+
+          {/* ==================================================
+              DOCUMENT PREVIEW
+          =================================================== */}
+
+          <div className="overflow-hidden rounded-card border border-surface-border bg-surface-card shadow-card lg:col-span-2">
+
+            {/* Preview Header */}
+            <div className="flex items-center justify-between border-b border-surface-border bg-surface-muted px-4 py-3">
+              <div className="flex items-center gap-2">
+                <FileText
+                  size={16}
+                  className="text-ink-500"
+                />
+
+                <span className="text-sm font-medium text-ink-700">
+                  Document Preview
+                </span>
+              </div>
+
+              {/* Zoom Controls */}
+              {isImage && previewUrl && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setZoom((value) =>
+                        Math.max(
+                          0.5,
+                          value - 0.1
+                        )
+                      )
+                    }
+                    className="rounded-md p-1.5 text-ink-500 hover:bg-white hover:text-ink-900"
+                    title="Zoom out"
+                  >
+                    <ZoomOut size={16} />
+                  </button>
+
+                  <span className="min-w-[45px] text-center text-xs text-ink-500">
+                    {Math.round(
+                      zoom * 100
+                    )}
+                    %
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setZoom((value) =>
+                        Math.min(
+                          2,
+                          value + 0.1
+                        )
+                      )
+                    }
+                    className="rounded-md p-1.5 text-ink-500 hover:bg-white hover:text-ink-900"
+                    title="Zoom in"
+                  >
+                    <ZoomIn size={16} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setZoom(1)
+                    }
+                    className="rounded-md p-1.5 text-ink-500 hover:bg-white hover:text-ink-900"
+                    title="Reset zoom"
+                  >
+                    <RotateCcw
+                      size={15}
+                    />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Preview Area */}
+            <div className="flex min-h-[620px] items-center justify-center overflow-auto bg-slate-100 p-4">
+
+              {/* Loading */}
+              {previewLoading && (
+                <div className="flex flex-col items-center gap-3 text-ink-500">
+                  <Loader2
+                    size={28}
+                    className="animate-spin text-navy-700"
+                  />
+
+                  <p className="text-sm">
+                    Loading secure preview…
+                  </p>
+                </div>
+              )}
+
+              {/* Error */}
+              {!previewLoading &&
+                previewError && (
+                  <div className="max-w-md rounded-xl border border-status-critical/20 bg-white p-6 text-center shadow-sm">
+                    <FileText
+                      size={36}
+                      className="mx-auto mb-3 text-ink-400"
+                    />
+
+                    <p className="font-medium text-ink-900">
+                      Preview unavailable
+                    </p>
+
+                    <p className="mt-1 text-sm text-ink-500">
+                      {previewError}
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={
+                        handleDownload
+                      }
+                      className="mt-4 rounded-lg bg-navy-800 px-4 py-2 text-sm font-medium text-white hover:bg-navy-700"
+                    >
+                      Download Document
+                    </button>
+                  </div>
+                )}
+
+              {/* PDF */}
+              {!previewLoading &&
+                !previewError &&
+                previewUrl &&
+                isPdf && (
+                  <iframe
+                    src={previewUrl}
+                    title={`Preview of ${doc.name}`}
+                    className="h-[600px] w-full rounded-lg border border-surface-border bg-white shadow-sm"
+                  />
+                )}
+
+              {/* Image */}
+              {!previewLoading &&
+                !previewError &&
+                previewUrl &&
+                isImage && (
+                  <div className="flex min-h-[580px] w-full items-center justify-center overflow-auto rounded-lg bg-white p-6 shadow-sm">
+                    <img
+                      src={previewUrl}
+                      alt={`Preview of ${doc.name}`}
+                      className="max-h-[560px] max-w-full object-contain transition-transform duration-200"
+                      style={{
+                        transform: `scale(${zoom})`,
+                      }}
+                    />
+                  </div>
+                )}
+
+              {/* Unsupported file */}
+              {!previewLoading &&
+                !previewError &&
+                previewUrl &&
+                !isPdf &&
+                !isImage && (
+                  <div className="max-w-md rounded-xl border border-surface-border bg-white p-8 text-center shadow-sm">
+                    <FileText
+                      size={40}
+                      className="mx-auto mb-3 text-ink-400"
+                    />
+
+                    <h3 className="font-semibold text-ink-900">
+                      Preview not supported
+                    </h3>
+
+                    <p className="mt-1 text-sm text-ink-500">
+                      This file type cannot be previewed
+                      directly in the browser.
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={
+                        handleDownload
+                      }
+                      className="mt-4 rounded-lg bg-navy-800 px-4 py-2 text-sm font-medium text-white hover:bg-navy-700"
+                    >
+                      Download Document
+                    </button>
+                  </div>
+                )}
+            </div>
+
+            {/* Preview Footer */}
+            {previewUrl && (
+              <div className="flex items-center justify-between border-t border-surface-border bg-white px-4 py-2 text-xs text-ink-500">
+                <span>
+                  Secure document preview
+                </span>
+
+                <span>
+                  {isPdf
+                    ? "PDF"
+                    : isImage
+                      ? "Image"
+                      : "Document"}
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* Document security */}
+          {/* ==================================================
+              DOCUMENT SECURITY
+          =================================================== */}
+
           <div className="rounded-card border border-surface-border bg-surface-card p-5 shadow-card">
+
             <h3 className="mb-4 text-sm font-semibold text-ink-900">
               Document Security
             </h3>
 
             <dl className="space-y-3 text-sm">
+
               {/* Integrity */}
               <Row label="Integrity">
                 <StatusBadge
@@ -473,7 +780,7 @@ export default function DocumentViewerPage() {
                 mono
               />
 
-              {/* Uploaded by */}
+              {/* Uploaded By */}
               <PlainRow
                 label="Uploaded by"
                 value={
@@ -511,118 +818,118 @@ export default function DocumentViewerPage() {
               </Row>
             </dl>
 
-            {/* ========================================================== */}
-            {/* PERMISSION-AWARE ACTIONS                                  */}
-            {/* ========================================================== */}
-
+            {/* Actions */}
             <div className="mt-5 flex flex-col gap-2">
-              {/* Download
-                  Visible only when user has download permission.
-               */}
-              {canDownload && (
-                <button
-                  type="button"
-                  onClick={
-                    handleDownload
-                  }
-                  disabled={
-                    downloading
-                  }
-                  className="flex items-center justify-center gap-2 rounded-lg border border-surface-border py-2 text-sm font-medium text-ink-700 hover:bg-surface-muted disabled:opacity-60"
-                >
-                  {downloading ? (
-                    <Loader2
-                      className="animate-spin"
-                      size={15}
-                    />
-                  ) : (
-                    <Download
-                      size={15}
-                    />
-                  )}
 
-                  {downloading
-                    ? "Preparing…"
-                    : "Download"}
-                </button>
-              )}
-
-              {/* Verify integrity
-                  Visible only when user has verify permission.
-               */}
-              {canVerify && (
-                <motion.button
-                  type="button"
-                  whileHover={{
-                    scale: 1.01,
-                  }}
-                  whileTap={{
-                    scale: 0.98,
-                  }}
-                  onClick={
-                    handleReverify
-                  }
-                  disabled={
-                    verifying
-                  }
-                  className="flex items-center justify-center gap-2 rounded-lg bg-navy-800 py-2 text-sm font-medium text-white hover:bg-navy-700 disabled:opacity-60"
-                >
-                  <motion.span
-                    animate={
-                      verifying
-                        ? {
-                            rotate: 360,
-                          }
-                        : {}
-                    }
-                    transition={
-                      verifying
-                        ? {
-                            repeat:
-                              Infinity,
-                            duration: 0.8,
-                            ease: "linear",
-                          }
-                        : {}
-                    }
-                  >
-                    <ShieldCheck
-                      size={15}
-                    />
-                  </motion.span>
-
-                  {verifying
-                    ? "Verifying…"
-                    : "Verify Integrity"}
-                </motion.button>
-              )}
-
-              {/* Update
-                  There is currently no Update UI/action implemented
-                  on this page. We only keep the permission available
-                  for future use.
-               */}
-              {canUpdate && (
-                <div className="hidden">
-                  Update permission available
-                </div>
-              )}
-
-              {/* No additional actions */}
-              {!canDownload &&
-                !canVerify && (
-                  <p className="rounded-lg bg-surface-muted px-3 py-2 text-center text-xs text-ink-500">
-                    You have view-only access to this document.
-                  </p>
+              {/* Download */}
+              <button
+                type="button"
+                onClick={
+                  handleDownload
+                }
+                disabled={
+                  downloading
+                }
+                className="
+                  flex
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-lg
+                  border
+                  border-surface-border
+                  py-2
+                  text-sm
+                  font-medium
+                  text-ink-700
+                  transition
+                  hover:bg-surface-muted
+                  disabled:opacity-60
+                "
+              >
+                {downloading ? (
+                  <Loader2
+                    className="animate-spin"
+                    size={15}
+                  />
+                ) : (
+                  <Download
+                    size={15}
+                  />
                 )}
+
+                {downloading
+                  ? "Preparing…"
+                  : "Download"}
+              </button>
+
+              {/* Verify Integrity */}
+              <motion.button
+                type="button"
+                whileHover={{
+                  scale: 1.01,
+                }}
+                whileTap={{
+                  scale: 0.98,
+                }}
+                onClick={
+                  handleReverify
+                }
+                disabled={
+                  verifying
+                }
+                className="
+                  flex
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-lg
+                  bg-navy-800
+                  py-2
+                  text-sm
+                  font-medium
+                  text-white
+                  transition
+                  hover:bg-navy-700
+                  disabled:opacity-60
+                "
+              >
+                <motion.span
+                  animate={
+                    verifying
+                      ? {
+                          rotate: 360,
+                        }
+                      : {}
+                  }
+                  transition={
+                    verifying
+                      ? {
+                          repeat:
+                            Infinity,
+                          duration: 0.8,
+                          ease: "linear",
+                        }
+                      : {}
+                  }
+                >
+                  <ShieldCheck
+                    size={15}
+                  />
+                </motion.span>
+
+                {verifying
+                  ? "Verifying…"
+                  : "Verify Integrity"}
+              </motion.button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ================================================================ */}
-      {/* VERSIONS TAB                                                     */}
-      {/* ================================================================ */}
+      {/* ======================================================
+          VERSIONS TAB
+      ======================================================= */}
 
       {tab === "Versions" && (
         <EmptyState
@@ -631,9 +938,9 @@ export default function DocumentViewerPage() {
         />
       )}
 
-      {/* ================================================================ */}
-      {/* CHAIN OF CUSTODY TAB                                             */}
-      {/* ================================================================ */}
+      {/* ======================================================
+          CHAIN OF CUSTODY TAB
+      ======================================================= */}
 
       {tab === "Chain of Custody" &&
         (loadingCustody ? (
@@ -653,13 +960,14 @@ export default function DocumentViewerPage() {
           </div>
         ))}
 
-      {/* ================================================================ */}
-      {/* DETAILS TAB                                                      */}
-      {/* ================================================================ */}
+      {/* ======================================================
+          DETAILS TAB
+      ======================================================= */}
 
       {tab === "Details" && (
         <div className="rounded-card border border-surface-border bg-surface-card p-5 shadow-card">
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
+
             <PlainRow
               label="Document ID"
               value={doc.id}
@@ -725,28 +1033,6 @@ export default function DocumentViewerPage() {
                   : "Pending"
               }
             />
-
-            <PlainRow
-              label="Your Permissions"
-              value={
-                permissions
-                  .map(
-                    (permission: string) =>
-                      permission
-                        .replace(
-                          "_",
-                          " "
-                        )
-                        .replace(
-                          /\b\w/g,
-                          (char) =>
-                            char.toUpperCase()
-                        )
-                  )
-                  .join(", ") ||
-                "View"
-              }
-            />
           </dl>
         </div>
       )}
@@ -755,8 +1041,11 @@ export default function DocumentViewerPage() {
 }
 
 /**
- * Reusable status row.
+ * ================================================================
+ * REUSABLE STATUS ROW
+ * ================================================================
  */
+
 function Row({
   label,
   children,
@@ -778,8 +1067,11 @@ function Row({
 }
 
 /**
- * Reusable text row.
+ * ================================================================
+ * REUSABLE TEXT ROW
+ * ================================================================
  */
+
 function PlainRow({
   label,
   value,
@@ -796,7 +1088,7 @@ function PlainRow({
       </dt>
 
       <dd
-        className={`break-all text-right font-medium text-ink-900 ${
+        className={`max-w-[65%] break-all text-right font-medium text-ink-900 ${
           mono
             ? "font-mono text-xs"
             : ""
